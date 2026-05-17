@@ -1,0 +1,92 @@
+# Manual smoke-test sequence. Run from top to bottom against a fresh AppHost.
+
+@host = http://localhost:5000
+@player = smoke_player
+
+# ---------------------------------------------------------------------------
+# 1. Happy path: add then deduct, balance ends at 70 EUR.
+# ---------------------------------------------------------------------------
+
+### 1a. Credit 100 EUR
+POST {{host}}/wallets/{{player}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 100, "currency": "EUR" }
+}
+
+### 1b. Debit 30 EUR
+POST {{host}}/wallets/{{player}}/deduct-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 30, "currency": "EUR" }
+}
+
+### 1c. Balance should be 70 EUR
+GET {{host}}/wallets/{{player}}/balance
+
+# ---------------------------------------------------------------------------
+# 2. Idempotency: same operationId twice produces one mutation.
+# ---------------------------------------------------------------------------
+
+@idempotentOp = 00000000-0000-0000-0000-000000000001
+
+### 2a. First call: credits 10 EUR
+POST {{host}}/wallets/{{player}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{idempotentOp}}",
+  "amount": { "amount": 10, "currency": "EUR" }
+}
+
+### 2b. Same operationId again: same balance, no second credit
+POST {{host}}/wallets/{{player}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{idempotentOp}}",
+  "amount": { "amount": 10, "currency": "EUR" }
+}
+
+# ---------------------------------------------------------------------------
+# 3. Insufficient funds: returns 402 with rejectionCode=InsufficientFunds.
+# ---------------------------------------------------------------------------
+
+### 3. Try to deduct more than the current balance
+POST {{host}}/wallets/{{player}}/deduct-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 9999, "currency": "EUR" }
+}
+
+# ---------------------------------------------------------------------------
+# 4. Currency mismatch: returns 400 with rejectionCode=CurrencyMismatch.
+# ---------------------------------------------------------------------------
+
+### 4. Wallet is EUR; pay in USD
+POST {{host}}/wallets/{{player}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 5, "currency": "USD" }
+}
+
+# ---------------------------------------------------------------------------
+# 5. Invalid amount: returns 400 with rejectionCode=InvalidAmount.
+# ---------------------------------------------------------------------------
+
+### 5. Zero is not a valid credit
+POST {{host}}/wallets/{{player}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 0, "currency": "EUR" }
+}

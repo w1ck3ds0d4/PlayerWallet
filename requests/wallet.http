@@ -1,0 +1,36 @@
+@host = http://localhost:5000
+@playerId = player_demo
+@operationId = {{$guid}}
+
+### Add 100 EUR
+POST {{host}}/wallets/{{playerId}}/add-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{operationId}}",
+  "amount": { "amount": 100, "currency": "EUR" }
+}
+
+### Deduct 30 EUR
+POST {{host}}/wallets/{{playerId}}/deduct-funds
+Content-Type: application/json
+
+{
+  "operationId": "{{$guid}}",
+  "amount": { "amount": 30, "currency": "EUR" }
+}
+
+### Check balance
+GET {{host}}/wallets/{{playerId}}/balance
+
+### Liveness probe
+GET {{host}}/health/live
+
+### Readiness probe
+GET {{host}}/health/ready
+
+### OpenAPI document
+GET {{host}}/openapi/v1.json
+
+### Scalar API explorer
+GET {{host}}/scalar/v1
