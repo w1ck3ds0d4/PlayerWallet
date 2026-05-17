@@ -1,8 +1,11 @@
+using System.Data.Common;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Npgsql;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using Scalar.AspNetCore;
+using PlayerWallet.Api.Db;
 using PlayerWallet.Api.Endpoints;
 using PlayerWallet.Api.Kafka;
 using PlayerWallet.Api.Telemetry;
@@ -12,6 +15,16 @@ using PlayerWallet.Grains.Telemetry;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddServiceDefaults();
+
+// Aspire injects ConnectionStrings:orleans when the AppHost runs; absent in
+// component tests and standalone runs.
+var orleansConnectionString = builder.Configuration.GetConnectionString("orleans");
+var usingPostgres = !string.IsNullOrWhiteSpace(orleansConnectionString);
+
+if (usingPostgres)
+{
+    DbProviderFactories.RegisterFactory("Npgsql", NpgsqlFactory.Instance);
+}
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -29,7 +42,19 @@ builder.Services.AddSingleton<IWalletEventPublisher, NoOpWalletEventPublisher>()
 builder.UseOrleans(silo =>
 {
     silo.UseLocalhostClustering();
-    silo.AddMemoryGrainStorage("WalletStorage");
+
+    if (usingPostgres)
+    {
+        silo.AddAdoNetGrainStorage("WalletStorage", options =>
+        {
+            options.Invariant = "Npgsql";
+            options.ConnectionString = orleansConnectionString!;
+        });
+    }
+    else
+    {
+        silo.AddMemoryGrainStorage("WalletStorage");
+    }
 });
 
 builder.Services.AddHealthChecks()
@@ -42,6 +67,18 @@ builder.Services.AddOpenApi(options =>
 });
 
 var app = builder.Build();
+
+// Schema bootstrap: Development by default, opt-in via Wallet:BootstrapSchema
+// in any other environment so a deployment pipeline owns the schema in
+// staging or prod.
+var shouldBootstrapSchema = usingPostgres &&
+    (app.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Wallet:BootstrapSchema"));
+
+if (shouldBootstrapSchema)
+{
+    var bootstrapLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SchemaBootstrap");
+    await SchemaBootstrap.EnsureOrleansSchemaAsync(orleansConnectionString!, bootstrapLogger, app.Lifetime.ApplicationStopping);
+}
 
 app.MapDefaultEndpoints();
 
