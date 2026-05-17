@@ -27,12 +27,15 @@ var scenarios = new (string Name, Func<NBomber.Contracts.ScenarioProps> Build)[]
     ("hot-wallet",   () => WalletScenarios.HotWalletDeducts(httpClient)),
 };
 
-foreach (var (name, build) in scenarios)
+// Cooldown between scenarios so each starts against a quiet API; skipped when only one scenario is filtered.
+var cooldown = TimeSpan.FromSeconds(60);
+var scenariosToRun = scenarios
+    .Where(s => scenarioFilter is null || scenarioFilter.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
+    .ToArray();
+
+for (var i = 0; i < scenariosToRun.Length; i++)
 {
-    if (scenarioFilter is not null && !scenarioFilter.Equals(name, StringComparison.OrdinalIgnoreCase))
-    {
-        continue;
-    }
+    var (name, build) = scenariosToRun[i];
 
     Console.WriteLine();
     Console.WriteLine($"=== Running scenario: {name} ===");
@@ -47,6 +50,12 @@ foreach (var (name, build) in scenarios)
         .Run();
 
     PrintSummary(name, stats);
+
+    if (i < scenariosToRun.Length - 1)
+    {
+        Console.WriteLine($"[load] Cooling down for {cooldown.TotalSeconds:F0}s before next scenario...");
+        await Task.Delay(cooldown);
+    }
 }
 
 return 0;
