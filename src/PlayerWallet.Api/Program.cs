@@ -37,7 +37,29 @@ builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
 
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IWalletEventPublisher, NoOpWalletEventPublisher>();
+
+// When Aspire injects ConnectionStrings:kafka, register the real producer
+// (which also implements IHealthCheck). Otherwise fall back to the NoOp
+// publisher so component tests and pre-AppHost runs still work.
+var kafkaConnectionString = builder.Configuration.GetConnectionString("kafka");
+var usingKafka = !string.IsNullOrWhiteSpace(kafkaConnectionString);
+
+if (usingKafka)
+{
+    builder.Services.Configure<KafkaWalletEventPublisherOptions>(o =>
+        o.BootstrapServers = kafkaConnectionString!);
+    builder.Services.AddSingleton<KafkaWalletEventPublisher>();
+    builder.Services.AddSingleton<IWalletEventPublisher>(sp => sp.GetRequiredService<KafkaWalletEventPublisher>());
+    builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
+        tracing.AddSource(KafkaWalletEventPublisher.ActivitySource.Name));
+    // Pre-create wallet.events explicitly so the partition count is owned by
+    // the service rather than inferred from broker defaults.
+    builder.Services.AddHostedService<KafkaTopicInitializer>();
+}
+else
+{
+    builder.Services.AddSingleton<IWalletEventPublisher, NoOpWalletEventPublisher>();
+}
 
 builder.UseOrleans(silo =>
 {
@@ -57,9 +79,14 @@ builder.UseOrleans(silo =>
     }
 });
 
-builder.Services.AddHealthChecks()
+var healthChecks = builder.Services.AddHealthChecks()
     .AddCheck<OrleansClusterReadinessCheck>("orleans", tags: ["ready"])
     .AddCheck<WalletEventPublisherReadinessCheck>("wallet-event-publisher", tags: ["ready"]);
+
+if (usingKafka)
+{
+    healthChecks.AddCheck<KafkaWalletEventPublisher>("kafka-producer", tags: ["ready"]);
+}
 
 builder.Services.AddOpenApi(options =>
 {
