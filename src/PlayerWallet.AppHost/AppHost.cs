@@ -25,10 +25,10 @@ var api = builder.AddProject<Projects.PlayerWallet_Api>("api")
 
 if (!disableKafka)
 {
-    // Single-broker Kafka; wallet.events topic is created by KafkaTopicInitializer on API startup. KafkaUI surfaces the topic in the Aspire dashboard for the demo.
-    var kafka = builder.AddKafka("kafka")
-        .WithKafkaUI()
-        .WithLifetime(ContainerLifetime.Persistent);
+    // Host port pinned and container recreated each run so KAFKA_ADVERTISED_LISTENERS matches the actual Docker bind (Aspire 13.3.3 + persistent lifetime each cause an advertised-vs-bound port mismatch on their own). Override via WALLET_KAFKA_HOST_PORT.
+    var kafkaHostPort = int.TryParse(Environment.GetEnvironmentVariable("WALLET_KAFKA_HOST_PORT"), out var p) ? p : 19092;
+    var kafka = builder.AddKafka("kafka", port: kafkaHostPort)
+        .WithKafkaUI();
 
     api.WithReference(kafka).WaitFor(kafka);
 }
