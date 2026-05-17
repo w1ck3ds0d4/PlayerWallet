@@ -19,7 +19,10 @@ var orleansDb = postgres.AddDatabase("orleans");
 // PLAYERWALLET_DISABLE_KAFKA=1 skips Kafka registration so the API falls back to NoOpWalletEventPublisher; used to isolate broker round-trip while perf-debugging.
 var disableKafka = Environment.GetEnvironmentVariable("PLAYERWALLET_DISABLE_KAFKA") == "1";
 
+// Pin the API HTTP endpoint so the load harness and manual smoke tests can target a stable URL. Override via WALLET_API_HOST_PORT.
+var apiHostPort = int.TryParse(Environment.GetEnvironmentVariable("WALLET_API_HOST_PORT"), out var apiPort) ? apiPort : 5000;
 var api = builder.AddProject<Projects.PlayerWallet_Api>("api")
+    .WithHttpEndpoint(port: apiHostPort, name: "http")
     .WithReference(orleansDb)
     .WaitFor(orleansDb);
 
