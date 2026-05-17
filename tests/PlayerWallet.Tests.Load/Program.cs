@@ -15,6 +15,7 @@ using var httpClient = HttpClientFactory.Create(baseUrl);
 
 await WaitForApiReadyAsync(httpClient, TimeSpan.FromMinutes(2));
 await WalletPool.SeedAsync(httpClient, CancellationToken.None);
+await WalletPool.PreWarmAsync(httpClient, CancellationToken.None);
 
 var reportsRoot = Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "reports");
 Directory.CreateDirectory(reportsRoot);
