@@ -47,6 +47,9 @@ internal sealed class KafkaWalletEventPublisher : IWalletEventPublisher, IAsyncD
             CompressionType = CompressionType.Lz4,
             MessageTimeoutMs = 10_000,
             ClientId = "PlayerWallet.Api",
+            // In-process buffer lifted so sustained 1000 rps does not stall on BufferQueueFull while the broker is acking earlier batches.
+            QueueBufferingMaxMessages = 500_000,
+            QueueBufferingMaxKbytes = 65_536,
         };
 
         _producer = new ProducerBuilder<string, byte[]>(config)

@@ -1,10 +1,15 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// PostgreSQL backs Orleans grain state via the AdoNet provider. The data
-// volume keeps the wallet ledger across AppHost restarts during demo.
+// PostgreSQL backs Orleans grain state via the AdoNet provider. Server args tune for sustained write load; synchronous_commit stays ON (default) because this is a wallet ledger.
 var postgres = builder.AddPostgres("postgres")
     .WithDataVolume(isReadOnly: false)
-    .WithLifetime(ContainerLifetime.Persistent);
+    .WithLifetime(ContainerLifetime.Persistent)
+    .WithArgs("-c", "max_connections=500",
+              "-c", "shared_buffers=512MB",
+              "-c", "work_mem=16MB",
+              "-c", "effective_cache_size=1GB",
+              "-c", "checkpoint_timeout=15min",
+              "-c", "max_wal_size=2GB");
 
 var orleansDb = postgres.AddDatabase("orleans");
 

@@ -67,10 +67,15 @@ builder.UseOrleans(silo =>
 
     if (usingPostgres)
     {
+        // Lift Npgsql pool size so the pool semaphore is not the bottleneck under sustained load; Aspire owns host+credentials, we only append pool tuning.
+        var tunedConnectionString = AppendIfMissing(
+            orleansConnectionString!,
+            "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60");
+
         silo.AddAdoNetGrainStorage("WalletStorage", options =>
         {
             options.Invariant = "Npgsql";
-            options.ConnectionString = orleansConnectionString!;
+            options.ConnectionString = tunedConnectionString;
         });
     }
     else
@@ -126,7 +131,26 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check 
 
 await app.RunAsync();
 
-public partial class Program;
+public partial class Program
+{
+    /// <summary>Appends keys to a connection string only when Aspire did not already set them.</summary>
+    internal static string AppendIfMissing(string connectionString, string additions)
+    {
+        var existing = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(part => part.Split('=', 2)[0].Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var toAdd = additions.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(part =>
+            {
+                var key = part.Split('=', 2)[0].Trim();
+                return !existing.Contains(key);
+            });
+
+        var separator = connectionString.TrimEnd().EndsWith(';') ? string.Empty : ";";
+        return connectionString + separator + string.Join(';', toAdd);
+    }
+}
 
 /// <summary>Readiness probe: green once the local Orleans cluster client is connected.</summary>
 internal sealed class OrleansClusterReadinessCheck(IClusterClient cluster) : IHealthCheck
