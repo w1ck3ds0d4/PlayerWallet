@@ -12,7 +12,7 @@ namespace PlayerWallet.Api.Kafka;
 
 /// <summary>
 /// Confluent.Kafka producer for wallet events.
-/// Tuned for durability: <c>Acks=All</c> + <c>EnableIdempotence=true</c>; batching via <c>LingerMs=5</c> + <c>BatchSize=32K</c> + Lz4.
+/// Single-broker dev/bench config: <c>Acks=Leader</c> + <c>Idempotence=off</c> + <c>MaxInFlight=100</c>; production reverts to <c>Acks=All</c> + idempotent producer on a 3-broker cluster.
 /// Wraps every <c>Produce</c> in a <see cref="ActivityKind.Producer"/> <see cref="Activity"/> and injects <c>traceparent</c>/<c>tracestate</c> into Kafka headers so the distributed trace spans HTTP -&gt; grain -&gt; Kafka. Partition key is <c>playerId</c> so per-player events stay ordered.
 /// </summary>
 internal sealed class KafkaWalletEventPublisher : IWalletEventPublisher, IAsyncDisposable, IHealthCheck
@@ -37,13 +37,15 @@ internal sealed class KafkaWalletEventPublisher : IWalletEventPublisher, IAsyncD
     {
         _logger = logger;
 
+        // Single-broker dev/bench config: Acks=Leader (no replicas to ack on a 1-broker cluster), idempotence off so MaxInFlight can lift past the idempotent-mode cap of 5 and the producer can keep many partial batches in flight. Production reverts to Acks.All + idempotent on a 3-broker cluster.
         var config = new ProducerConfig
         {
             BootstrapServers = options.Value.BootstrapServers,
-            Acks = Acks.All,
-            EnableIdempotence = true,
+            Acks = Acks.Leader,
+            EnableIdempotence = false,
+            MaxInFlight = 100,
             LingerMs = 5,
-            BatchSize = 32 * 1024,
+            BatchSize = 64 * 1024,
             CompressionType = CompressionType.Lz4,
             MessageTimeoutMs = 10_000,
             ClientId = "PlayerWallet.Api",
