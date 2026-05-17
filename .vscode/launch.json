@@ -1,0 +1,61 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run AppHost (Aspire)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "stopAtEntry": false,
+      "console": "internalConsole",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_LAUNCH_PROFILE": "http"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Login to the dashboard at (https?://\\S+)",
+        "uriFormat": "%s"
+      }
+    },
+    {
+      "name": "Run AppHost (no debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "console": "internalConsole",
+      "noDebug": true,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_LAUNCH_PROFILE": "http"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Login to the dashboard at (https?://\\S+)",
+        "uriFormat": "%s"
+      }
+    },
+    {
+      "name": "Run Load Benchmarks (NBomber)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-release",
+      "program": "${workspaceFolder}/tests/PlayerWallet.Tests.Load/bin/Release/net10.0/PlayerWallet.Tests.Load.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/tests/PlayerWallet.Tests.Load",
+      "console": "integratedTerminal",
+      "noDebug": true,
+      "env": {
+        "DOTNET_ENVIRONMENT": "Production"
+      }
+    }
+  ]
+}
