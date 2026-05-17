@@ -1,0 +1,38 @@
+# Normalize all text files to LF in the repository; checkout uses native line endings.
+* text=auto eol=lf
+
+# Source files: always LF
+*.cs            text eol=lf diff=csharp
+*.csproj        text eol=lf
+*.slnx          text eol=lf
+*.sln           text eol=lf
+*.props         text eol=lf
+*.targets       text eol=lf
+*.json          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.md            text eol=lf
+*.http          text eol=lf
+*.sql           text eol=lf
+*.editorconfig  text eol=lf
+*.gitattributes text eol=lf
+*.gitignore     text eol=lf
+
+# Shell scripts must always be LF
+*.sh            text eol=lf
+
+# Windows-only scripts stay CRLF
+*.ps1           text eol=crlf
+*.cmd           text eol=crlf
+*.bat           text eol=crlf
+
+# Binary: never normalize
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.ico           binary
+*.pdf           binary
+*.zip           binary
+*.7z            binary
+*.tar.gz        binary
