@@ -6,7 +6,7 @@ using PlayerWallet.Grains;
 
 namespace PlayerWallet.Tests.Component.Grain;
 
-/// <summary>xUnit fixture: in-process Orleans test cluster with memory grain storage and a singleton fake publisher tests inspect. No Postgres dependency.</summary>
+/// <summary>xUnit fixture that spins up an in-process Orleans test cluster with memory grain storage, an in-memory <see cref="IWalletStateStore"/>, and a singleton fake publisher the tests can inspect.</summary>
 public sealed class WalletGrainTestCluster : IAsyncLifetime
 {
     private static readonly FakeWalletEventPublisher s_publisher = new();
@@ -44,6 +44,7 @@ public sealed class WalletGrainTestCluster : IAsyncLifetime
             {
                 services.AddSingleton<TimeProvider>(s_timeProvider);
                 services.AddSingleton<IWalletEventPublisher>(s_publisher);
+                services.AddSingleton<IWalletStateStore, InMemoryWalletStateStore>();
             });
         }
     }

@@ -61,27 +61,27 @@ else
     builder.Services.AddSingleton<IWalletEventPublisher, NoOpWalletEventPublisher>();
 }
 
+// Custom state store: PostgresWalletStateStore commits state + outbox row in one transaction; WalletOutboxDrainer ships outbox to Kafka off-thread. Without Postgres, InMemoryWalletStateStore forwards events to the publisher synchronously so test assertions still see them.
+if (usingPostgres)
+{
+    var tunedStoreConnectionString = AppendIfMissing(
+        orleansConnectionString!,
+        "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60");
+    builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(tunedStoreConnectionString));
+    builder.Services.AddSingleton<IWalletStateStore, PostgresWalletStateStore>();
+    builder.Services.AddHostedService<WalletOutboxDrainer>();
+}
+else
+{
+    builder.Services.AddSingleton<IWalletStateStore, InMemoryWalletStateStore>();
+}
+
 builder.UseOrleans(silo =>
 {
     silo.UseLocalhostClustering();
 
-    if (usingPostgres)
-    {
-        // Lift Npgsql pool size so the pool semaphore is not the bottleneck under sustained load; Aspire owns host+credentials, we only append pool tuning.
-        var tunedConnectionString = AppendIfMissing(
-            orleansConnectionString!,
-            "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60");
-
-        silo.AddAdoNetGrainStorage("WalletStorage", options =>
-        {
-            options.Invariant = "Npgsql";
-            options.ConnectionString = tunedConnectionString;
-        });
-    }
-    else
-    {
-        silo.AddMemoryGrainStorage("WalletStorage");
-    }
+    // Memory storage stays registered for incidental Orleans-managed state; the wallet grain now goes through IWalletStateStore.
+    silo.AddMemoryGrainStorage("WalletStorage");
 });
 
 var healthChecks = builder.Services.AddHealthChecks()

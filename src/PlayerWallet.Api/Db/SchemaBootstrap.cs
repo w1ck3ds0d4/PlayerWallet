@@ -3,32 +3,55 @@ using Npgsql;
 
 namespace PlayerWallet.Api.Db;
 
-/// <summary>Applies the Orleans AdoNet schema before the silo starts. Reads vendored PostgreSQL-Main.sql + PostgreSQL-Persistence.sql (Orleans 10 stopped shipping them in NuGet) and applies them transactionally. Idempotent: <c>to_regclass('orleansstorage')</c> short-circuits when already present.</summary>
+/// <summary>
+/// Applies the Orleans AdoNet PostgreSQL schema before the silo starts. Reads
+/// the vendored PostgreSQL-Main.sql + PostgreSQL-Persistence.sql scripts from
+/// embedded resources (Orleans 10 stopped shipping them in the NuGet) and runs
+/// them as a single transactional batch. Idempotent: if OrleansStorage is
+/// already present the bootstrap is a no-op.
+/// </summary>
 internal static class SchemaBootstrap
 {
     private const string MainScriptResource = "PlayerWallet.Api.Db.Schema.PostgreSQL-Main.sql";
     private const string PersistenceScriptResource = "PlayerWallet.Api.Db.Schema.PostgreSQL-Persistence.sql";
+    private const string WalletStateAndOutboxScriptResource = "PlayerWallet.Api.Db.Schema.WalletStateAndOutbox.sql";
 
     public static async Task EnsureOrleansSchemaAsync(string connectionString, ILogger logger, CancellationToken cancellationToken = default)
     {
         await using var connection = new NpgsqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
 
-        if (await TableExistsAsync(connection, "orleansstorage", cancellationToken))
+        // OrleansStorage stays for cluster/membership tables even though the wallet grain no longer routes state through Orleans's AdoNet storage provider.
+        var orleansPresent = await TableExistsAsync(connection, "orleansstorage", cancellationToken);
+        var walletStatePresent = await TableExistsAsync(connection, "wallet_state", cancellationToken);
+
+        if (orleansPresent && walletStatePresent)
         {
-            logger.LogInformation("Orleans schema already present; skipping bootstrap.");
+            logger.LogInformation("Schema (Orleans + wallet_state + wallet_outbox) already present; skipping bootstrap.");
             return;
         }
 
-        logger.LogInformation("Bootstrapping Orleans AdoNet schema (Main + Persistence).");
+        logger.LogInformation(
+            "Bootstrapping schema (orleans={OrleansPresent}, wallet_state={WalletStatePresent}).",
+            orleansPresent,
+            walletStatePresent);
 
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         try
         {
-            await ExecuteEmbeddedScriptAsync(connection, transaction, MainScriptResource, cancellationToken);
-            await ExecuteEmbeddedScriptAsync(connection, transaction, PersistenceScriptResource, cancellationToken);
+            if (!orleansPresent)
+            {
+                await ExecuteEmbeddedScriptAsync(connection, transaction, MainScriptResource, cancellationToken);
+                await ExecuteEmbeddedScriptAsync(connection, transaction, PersistenceScriptResource, cancellationToken);
+            }
+
+            if (!walletStatePresent)
+            {
+                await ExecuteEmbeddedScriptAsync(connection, transaction, WalletStateAndOutboxScriptResource, cancellationToken);
+            }
+
             await transaction.CommitAsync(cancellationToken);
-            logger.LogInformation("Orleans schema bootstrap complete.");
+            logger.LogInformation("Schema bootstrap complete.");
         }
         catch
         {
