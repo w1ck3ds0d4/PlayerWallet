@@ -7,8 +7,10 @@ namespace PlayerWallet.Grains;
 /// <summary>
 /// Player wallet grain. One activation per player; turn-based concurrency serializes mutations.
 /// Per-mutation flow: check idempotency cache, validate amount + currency, mutate balance + cache,
-/// WriteStateAsync (atomic save), drain outbox to publisher. Events left in outbox replay on next
-/// op or activation. Reads use <see cref="Orleans.Concurrency.ReadOnlyAttribute"/> and interleave.
+/// single <c>WriteStateAsync</c> (atomic save of state + outbox), then drain outbox in memory only.
+/// Successfully published entries are NOT persisted again; the next mutation's save handles them,
+/// and an unflushed entry replays on reactivation (at-least-once contract; consumers idempotent on <c>eventId</c>).
+/// Reads use <see cref="Orleans.Concurrency.ReadOnlyAttribute"/> and interleave.
 /// </summary>
 public sealed class WalletGrain(
     [PersistentState("wallet", "WalletStorage")] IPersistentState<WalletState> state,
@@ -217,7 +219,7 @@ public sealed class WalletGrain(
                 _state.State.Outbox.Remove(entry);
             }
 
-            await _state.WriteStateAsync();
+            // Intentionally no WriteStateAsync here: the second save was the dominant Postgres cost under sustained throughput. The next mutation persists the drained outbox; if the grain deactivates first, the unflushed entry replays on reactivation (at-least-once contract).
         }
     }
 
