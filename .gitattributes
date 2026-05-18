@@ -36,3 +36,14 @@
 *.zip           binary
 *.7z            binary
 *.tar.gz        binary
+
+# NBomber load-test reports are tracked as a submission deliverable
+# (see the matching comment in .gitignore), but they are auto-generated
+# HTML / MD / CSV / TXT files. Mark them linguist-generated so GitHub's
+# language statistics on the owner profile don't get dominated by them
+# - each run drops a fresh ~500 KB HTML file, so without this the
+# profile reports ~60% HTML across the whole account.
+tests/PlayerWallet.Tests.Load/reports/**/*.html linguist-generated=true
+tests/PlayerWallet.Tests.Load/reports/**/*.md   linguist-generated=true
+tests/PlayerWallet.Tests.Load/reports/**/*.csv  linguist-generated=true
+tests/PlayerWallet.Tests.Load/reports/**/*.txt  linguist-generated=true
