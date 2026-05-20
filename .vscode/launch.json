@@ -56,6 +56,23 @@
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
       }
+    },
+    {
+      "name": "Open Scalar API UI",
+      "type": "chrome",
+      "request": "launch",
+      "url": "https://localhost:7223/scalar/v1",
+      "webRoot": "${workspaceFolder}/src/PlayerWallet.Api",
+      "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
+      "presentation": { "group": "PlayerWallet", "order": 4 }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "AppHost + Scalar UI",
+      "configurations": ["Run AppHost (Aspire)", "Open Scalar API UI"],
+      "stopAll": true,
+      "presentation": { "group": "PlayerWallet", "order": 0 }
     }
   ]
 }
