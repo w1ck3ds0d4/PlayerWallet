@@ -20,7 +20,8 @@
         "action": "openExternally",
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
-      }
+      },
+      "presentation": { "group": "PlayerWallet", "order": 1 }
     },
     {
       "name": "Run AppHost (no debug)",
@@ -41,7 +42,8 @@
         "action": "openExternally",
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
-      }
+      },
+      "presentation": { "group": "PlayerWallet", "order": 2 }
     },
     {
       "name": "Run Load Benchmarks (NBomber)",
@@ -55,7 +57,8 @@
       "noDebug": true,
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
-      }
+      },
+      "presentation": { "group": "PlayerWallet", "order": 3 }
     },
     {
       "name": "Open Scalar API UI",
