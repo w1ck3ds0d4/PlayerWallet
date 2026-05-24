@@ -51,6 +51,51 @@
     <div id="db-stats-body"></div>
   </section>
 
+  <section class="spec-suite">
+    <h2>Spec benchmark suite</h2>
+    <div class="muted" style="margin-bottom:8px;font-size:12px;">
+      Runs the formal Elantil challenge: 3 endpoints (add-funds, deduct-funds, get-balance) x each project,
+      at <strong>300s @ 1000 rps</strong> per step, sequentially. ~36 min total wall-clock. Each step uses
+      the existing per-run pipeline so summaries land under <code>reports/</code> as usual.
+    </div>
+    <div class="control-row" style="margin-bottom:12px;">
+      <label>Projects in suite
+        <span id="suite-project-checkboxes" class="checkbox-row"></span>
+      </label>
+      <button id="run-suite" type="button">Run spec suite</button>
+      <span id="suite-status" class="muted"></span>
+    </div>
+
+    <div class="suite-split">
+      <div class="suite-left">
+        <h3>Live progress</h3>
+        <div id="suite-log" class="terminal">
+          <div class="log-line log-info">Idle. Click "Run spec suite" to start.</div>
+        </div>
+      </div>
+      <div class="suite-right">
+        <h3>Steps</h3>
+        <table class="suite-steps-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Project</th>
+              <th>Scenario</th>
+              <th>Status</th>
+              <th>Mean</th>
+              <th>p95</th>
+              <th>p99</th>
+              <th>OK / FAIL</th>
+            </tr>
+          </thead>
+          <tbody id="suite-steps-body">
+            <tr><td colspan="8" class="muted" style="text-align:center;padding:16px;">No suite run yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
   <section class="comparison">
     <h2>v1 vs v2 comparison</h2>
     <div class="muted" style="margin-bottom:8px;font-size:12px;">Per-run side-by-side. Δ shown as % difference (v2 vs v1); <span style="color:var(--ok)">▼ green = v2 faster</span>, <span style="color:var(--bad)">▲ red = v2 slower</span>, · neutral within ±2% (measurement noise). Solo-project runs are excluded.</div>

@@ -185,8 +185,36 @@ public static class DashboardEndpoints
             return Results.Ok(results);
         });
 
+        // Suite endpoints: orchestrated multi-step benches (the formal Elantil spec runs the
+        // default suite: 3 endpoints x 2 projects @ 300s x 1000rps). One suite in flight at a
+        // time; the runner takes BenchRunner's lock per step so the existing single-run
+        // semantics aren't affected.
+        group.MapPost("/suite/spec", async (SuiteRunner suiteRunner, BenchRunner benchRunner, SuiteSpecRequest? request, CancellationToken ct) =>
+        {
+            if (suiteRunner.IsRunning)
+            {
+                return Results.Problem(title: "Suite in progress", detail: "Another suite is already running. Wait for it to finish.", statusCode: 409);
+            }
+            if (benchRunner.IsRunning)
+            {
+                return Results.Problem(title: "Bench in progress", detail: "A single-run benchmark is already in flight. Wait for it to finish.", statusCode: 409);
+            }
+
+            var suite = await suiteRunner.StartSpecSuiteAsync(request?.Projects, ct);
+            return Results.Accepted($"/api/suite/{suite.Id}", new { id = suite.Id });
+        });
+
+        group.MapGet("/suite", (SuiteRunner suiteRunner) => Results.Ok(suiteRunner.RecentSuites));
+
+        group.MapGet("/suite/{id}", (string id, SuiteRunner suiteRunner) =>
+        {
+            var suite = suiteRunner.GetSuite(id);
+            return suite is null ? Results.NotFound() : Results.Ok(suite);
+        });
+
         return app;
     }
 }
 
 public sealed record BenchRequest(string Scenario, string[] Projects, int? DurationSeconds = null, int? RequestsPerSecond = null);
+public sealed record SuiteSpecRequest(string[]? Projects);

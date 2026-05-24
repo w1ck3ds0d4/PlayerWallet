@@ -38,6 +38,7 @@ async function loadProjects() {
 
   renderProjects();
   renderProjectCheckboxes();
+  renderSuiteProjectCheckboxes();
 }
 
 function renderProjects() {
@@ -353,6 +354,135 @@ document.addEventListener('click', (e) => {
     e.stopPropagation();
   }
 });
+
+function renderSuiteProjectCheckboxes() {
+  const container = $('#suite-project-checkboxes');
+  if (!container) return;
+  container.innerHTML = '';
+  for (const p of state.projects) {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" value="${p.name}" checked> ${p.name}`;
+    container.appendChild(label);
+  }
+}
+
+function appendSuiteLogLine(entry) {
+  const term = $('#suite-log');
+  if (!term) return;
+  const line = document.createElement('div');
+  line.className = `log-line log-${entry.level}`;
+  const t = new Date(entry.at).toLocaleTimeString();
+  line.innerHTML = `<span class="log-time">${t}</span>${escapeHtml(entry.message)}`;
+  term.appendChild(line);
+  term.scrollTop = term.scrollHeight;
+}
+
+function renderSuiteLog(entries) {
+  const term = $('#suite-log');
+  if (!term) return;
+  term.innerHTML = '';
+  for (const e of entries) {
+    appendSuiteLogLine(e);
+  }
+}
+
+function renderSuiteSteps(steps) {
+  const tbody = $('#suite-steps-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    const tr = document.createElement('tr');
+    const statusClass = `step-${(s.status || 'pending').toLowerCase()}`;
+    const cell = (v) => (v === undefined || v === null ? '-' : v);
+    const okFail = s.outcome
+      ? `${s.outcome.okCount.toLocaleString()} / ${s.outcome.failCount.toLocaleString()}`
+      : '-';
+    const mean = s.outcome ? s.outcome.meanMs.toFixed(2) : '-';
+    const p95  = s.outcome ? s.outcome.p95Ms.toFixed(2)  : '-';
+    const p99  = s.outcome ? s.outcome.p99Ms.toFixed(2)  : '-';
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${s.project}</td>
+      <td>${s.scenario}</td>
+      <td class="${statusClass}">${s.status}</td>
+      <td>${mean}</td>
+      <td>${p95}</td>
+      <td>${p99}</td>
+      <td>${okFail}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  if (steps.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;padding:16px;">No steps in this suite.</td></tr>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function startSpecSuite() {
+  const projects = Array.from(document.querySelectorAll('#suite-project-checkboxes input:checked')).map(i => i.value);
+  if (projects.length === 0) {
+    $('#suite-status').textContent = 'Pick at least one project.';
+    $('#suite-status').className = 'muted run-status fail';
+    return;
+  }
+  $('#run-suite').disabled = true;
+  $('#suite-status').textContent = 'Starting suite...';
+  $('#suite-status').className = 'muted run-status progress';
+  renderSuiteLog([{ at: new Date().toISOString(), level: 'info', message: `Requesting suite for ${projects.join(', ')}...` }]);
+
+  try {
+    const resp = await fetch('/api/suite/spec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projects }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      $('#suite-status').textContent = `Failed to start: ${err.detail || err.title}`;
+      $('#suite-status').className = 'muted run-status fail';
+      $('#run-suite').disabled = false;
+      return;
+    }
+    const { id } = await resp.json();
+    pollSuite(id);
+  } catch (e) {
+    $('#suite-status').textContent = `Start error: ${e.message}`;
+    $('#suite-status').className = 'muted run-status fail';
+    $('#run-suite').disabled = false;
+  }
+}
+
+async function pollSuite(id) {
+  try {
+    while (true) {
+      const resp = await fetch(`/api/suite/${id}`);
+      if (!resp.ok) break;
+      const suite = await resp.json();
+      renderSuiteLog(suite.log || []);
+      renderSuiteSteps(suite.steps || []);
+      $('#suite-status').textContent = `${suite.status} - ${suite.statusDetail || ''}`;
+      const cls = suite.status === 'Completed' ? 'done' : (suite.status === 'Failed' || suite.status === 'Cancelled') ? 'fail' : 'progress';
+      $('#suite-status').className = `muted run-status ${cls}`;
+      if (['Completed', 'Failed', 'Cancelled'].includes(suite.status)) {
+        refreshHistory();
+        break;
+      }
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  } catch (e) {
+    $('#suite-status').textContent = `Poll error: ${e.message}`;
+    $('#suite-status').className = 'muted run-status fail';
+  } finally {
+    $('#run-suite').disabled = false;
+  }
+}
+
+const runSuiteBtn = $('#run-suite');
+if (runSuiteBtn) runSuiteBtn.addEventListener('click', startSpecSuite);
 
 $('#run').addEventListener('click', startRun);
 
