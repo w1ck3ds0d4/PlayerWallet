@@ -23,6 +23,12 @@ async function loadProjects() {
   $('#config-summary').textContent =
     `${projects.length} projects | ${config.requestsPerSecond} rps per project ${config.warmUpSeconds}s warmup ${config.durationSeconds}s measure`;
 
+  // Surface the reports root so the user knows where on-disk run folders live.
+  const reportsLabel = $('#reports-root');
+  if (reportsLabel && config.reportsRoot) {
+    reportsLabel.textContent = `Run artifacts (summary.json + NBomber HTML/CSV/MD/TXT) saved under: ${config.reportsRoot}`;
+  }
+
   // Seed the duration input with the server-configured default; user can override per run.
   const durationInput = $('#duration');
   if (durationInput) durationInput.value = config.durationSeconds;
@@ -225,6 +231,9 @@ async function refreshHistory() {
     ).join(' | ') || '-';
     const okTotal = r.outcomes.reduce((s, o) => s + o.okCount, 0);
     const failTotal = r.outcomes.reduce((s, o) => s + o.failCount, 0);
+    const folderCell = r.folderPath
+      ? `<span title="${r.folderPath}" data-copy="${r.folderPath}" style="cursor:copy;">${shortenPath(r.folderPath)}</span>`
+      : '<span class="muted">-</span>';
     tr.innerHTML = `
       <td>${dt}</td>
       <td>${r.scenario}</td>
@@ -232,6 +241,7 @@ async function refreshHistory() {
       <td>${r.status}</td>
       <td>${okTotal.toLocaleString()} / ${failTotal.toLocaleString()}</td>
       <td>${sums}</td>
+      <td>${folderCell}</td>
     `;
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', async () => {
@@ -247,6 +257,25 @@ function setRunStatus(text, cls) {
   el.textContent = text;
   el.className = `muted run-status ${cls || ''}`;
 }
+
+function shortenPath(p) {
+  if (!p) return '';
+  const parts = p.replace(/\\/g, '/').split('/');
+  if (parts.length <= 2) return p;
+  return `…/${parts.slice(-2).join('/')}`;
+}
+
+document.addEventListener('click', (e) => {
+  const target = e.target;
+  if (target instanceof HTMLElement && target.dataset.copy) {
+    navigator.clipboard.writeText(target.dataset.copy).then(() => {
+      const original = target.textContent;
+      target.textContent = 'copied!';
+      setTimeout(() => { target.textContent = original; }, 800);
+    }).catch(() => {});
+    e.stopPropagation();
+  }
+});
 
 $('#run').addEventListener('click', startRun);
 

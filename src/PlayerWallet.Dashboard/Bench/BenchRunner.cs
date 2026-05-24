@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 using NBomber.CSharp;
 
@@ -7,14 +9,37 @@ namespace PlayerWallet.Dashboard.Bench;
 /// <summary>
 /// Coordinates dashboard-triggered bench runs. Lets one run be in flight at a time, keeps the last N runs in memory, and exposes per-run status for polling.
 /// Runs NBomber in-process; v1 and v2 scenarios register together when both projects are picked, so the load is truly concurrent rather than serialised.
+/// v2 persistence: every completed run writes a per-run folder under <c>reports/</c> containing NBomber's HTML/CSV/MD/TXT exports plus a <c>summary.json</c>. On startup the runner scans that folder so the Recent runs table survives a dashboard restart and prior runs can be analysed offline.
 /// </summary>
-public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<DashboardOptions> options, ILogger<BenchRunner> logger)
+public sealed class BenchRunner
 {
     private const int HistoryCap = 20;
     private static readonly SemaphoreSlim s_runLock = new(1, 1);
+    private static readonly JsonSerializerOptions s_jsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    private readonly IHttpClientFactory _clientFactory;
+    private readonly IOptions<DashboardOptions> _options;
+    private readonly ILogger<BenchRunner> _logger;
     private readonly ConcurrentDictionary<string, BenchRun> _runs = new();
     private readonly Queue<string> _runOrder = new();
     private readonly object _historyLock = new();
+    private readonly string _reportsRoot;
+
+    public BenchRunner(IHttpClientFactory clientFactory, IOptions<DashboardOptions> options, ILogger<BenchRunner> logger)
+    {
+        _clientFactory = clientFactory;
+        _options = options;
+        _logger = logger;
+        _reportsRoot = Path.Combine(AppContext.BaseDirectory, "reports");
+        Directory.CreateDirectory(_reportsRoot);
+
+        LoadHistoryFromDisk();
+    }
 
     public IReadOnlyCollection<BenchRun> RecentRuns
     {
@@ -31,9 +56,11 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
 
     public bool IsRunning => s_runLock.CurrentCount == 0;
 
+    public string ReportsRoot => _reportsRoot;
+
     public Task<BenchRun> StartAsync(string scenario, IReadOnlyList<string> projectNames, int? durationOverrideSeconds, CancellationToken cancellationToken)
     {
-        var dashboardOpts = options.Value;
+        var dashboardOpts = _options.Value;
         var configured = dashboardOpts.Bench;
 
         // Per-run effective options, with the duration override applied if any. Other knobs stay
@@ -55,33 +82,31 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
                 ?? throw new InvalidOperationException($"Unknown project '{n}'."))
             .ToList();
 
+        var startedAt = DateTimeOffset.UtcNow;
+        var id = Guid.NewGuid().ToString("N");
+        var folderName = $"{startedAt:yyyyMMdd-HHmmss}-{scenario}-{id[..8]}";
+        var folderPath = Path.Combine(_reportsRoot, folderName);
+        Directory.CreateDirectory(folderPath);
+
         var run = new BenchRun
         {
-            Id = Guid.NewGuid().ToString("N"),
-            StartedAt = DateTimeOffset.UtcNow,
+            Id = id,
+            StartedAt = startedAt,
             ProjectNames = projects.Select(p => p.Name).ToArray(),
             Scenario = scenario,
             WarmUpSeconds = bench.WarmUpSeconds,
             DurationSeconds = bench.DurationSeconds,
             RequestsPerSecond = bench.RequestsPerSecond,
+            FolderPath = folderPath,
         };
 
-        _runs[run.Id] = run;
-        lock (_historyLock)
-        {
-            _runOrder.Enqueue(run.Id);
-            while (_runOrder.Count > HistoryCap)
-            {
-                var old = _runOrder.Dequeue();
-                _runs.TryRemove(old, out _);
-            }
-        }
+        AddToHistory(run);
 
-        _ = Task.Run(() => ExecuteAsync(run, projects, scenario, bench, cancellationToken), cancellationToken);
+        _ = Task.Run(() => ExecuteAsync(run, projects, scenario, bench, folderPath, cancellationToken), cancellationToken);
         return Task.FromResult(run);
     }
 
-    private async Task ExecuteAsync(BenchRun run, List<ProjectConfig> projects, string scenario, BenchOptions bench, CancellationToken cancellationToken)
+    private async Task ExecuteAsync(BenchRun run, List<ProjectConfig> projects, string scenario, BenchOptions bench, string folderPath, CancellationToken cancellationToken)
     {
         await s_runLock.WaitAsync(cancellationToken);
         try
@@ -93,12 +118,12 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
 
             foreach (var project in projects)
             {
-                var client = clientFactory.CreateClient(project.Name);
+                var client = _clientFactory.CreateClient(project.Name);
                 client.BaseAddress = new Uri(project.Url);
                 client.Timeout = TimeSpan.FromSeconds(30);
 
                 var ids = BenchScenarios.BuildPlayerIds(project.Name, bench.WalletPoolSize);
-                logger.LogInformation("Seeding {Count} wallets (+1 hot) for project {Project} at {Url}.", ids.Length, project.Name, project.Url);
+                _logger.LogInformation("Seeding {Count} wallets (+1 hot) for project {Project} at {Url}.", ids.Length, project.Name, project.Url);
                 await BenchScenarios.SeedAndWarmAsync(client, ids, project.Name, bench.SeedBalance, bench.Currency, cancellationToken);
 
                 perProject.Add((project, client, ids));
@@ -116,8 +141,8 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
             var stats = await Task.Run(() =>
                 NBomberRunner
                     .RegisterScenarios(scenarios)
-                    .WithReportFileName($"dashboard-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}")
-                    .WithReportFormats()
+                    .WithReportFolder(folderPath)
+                    .WithReportFileName("nbomber")
                     .Run(), cancellationToken);
 
             foreach (var s in stats.ScenarioStats)
@@ -143,7 +168,7 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Bench run {Id} failed.", run.Id);
+            _logger.LogError(ex, "Bench run {Id} failed.", run.Id);
             run.Status = BenchStatus.Failed;
             run.Error = ex.Message;
             run.FinishedAt = DateTimeOffset.UtcNow;
@@ -151,6 +176,90 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
         finally
         {
             s_runLock.Release();
+            TryWriteSummary(run);
+        }
+    }
+
+    private void TryWriteSummary(BenchRun run)
+    {
+        if (run.FolderPath is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.CreateDirectory(run.FolderPath);
+            var summaryPath = Path.Combine(run.FolderPath, "summary.json");
+            File.WriteAllText(summaryPath, JsonSerializer.Serialize(run, s_jsonOptions));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to write summary.json for run {Id} at {Folder}.", run.Id, run.FolderPath);
+        }
+    }
+
+    private void LoadHistoryFromDisk()
+    {
+        if (!Directory.Exists(_reportsRoot))
+        {
+            return;
+        }
+
+        IEnumerable<string> summaryFiles;
+        try
+        {
+            summaryFiles = Directory.EnumerateFiles(_reportsRoot, "summary.json", SearchOption.AllDirectories);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to enumerate reports folder {Folder}; starting with empty history.", _reportsRoot);
+            return;
+        }
+
+        var loaded = new List<BenchRun>();
+        foreach (var path in summaryFiles)
+        {
+            try
+            {
+                var json = File.ReadAllText(path);
+                var run = JsonSerializer.Deserialize<BenchRun>(json, s_jsonOptions);
+                if (run is not null)
+                {
+                    run.FolderPath = Path.GetDirectoryName(path);
+                    loaded.Add(run);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to load summary.json at {Path}; skipping.", path);
+            }
+        }
+
+        var ordered = loaded
+            .OrderBy(r => r.StartedAt)
+            .TakeLast(HistoryCap)
+            .ToArray();
+
+        foreach (var run in ordered)
+        {
+            AddToHistory(run);
+        }
+
+        _logger.LogInformation("Loaded {Count} prior bench run(s) from {Folder}.", ordered.Length, _reportsRoot);
+    }
+
+    private void AddToHistory(BenchRun run)
+    {
+        _runs[run.Id] = run;
+        lock (_historyLock)
+        {
+            _runOrder.Enqueue(run.Id);
+            while (_runOrder.Count > HistoryCap)
+            {
+                var old = _runOrder.Dequeue();
+                _runs.TryRemove(old, out _);
+            }
         }
     }
 

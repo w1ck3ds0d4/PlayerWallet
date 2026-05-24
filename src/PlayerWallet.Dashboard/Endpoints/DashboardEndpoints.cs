@@ -17,8 +17,17 @@ public static class DashboardEndpoints
                 p.Color,
             })));
 
-        group.MapGet("/config", (IOptions<DashboardOptions> options) =>
-            Results.Ok(options.Value.Bench));
+        group.MapGet("/config", (IOptions<DashboardOptions> options, BenchRunner runner) =>
+            Results.Ok(new
+            {
+                options.Value.Bench.WarmUpSeconds,
+                options.Value.Bench.DurationSeconds,
+                options.Value.Bench.RequestsPerSecond,
+                options.Value.Bench.WalletPoolSize,
+                options.Value.Bench.SeedBalance,
+                options.Value.Bench.Currency,
+                ReportsRoot = runner.ReportsRoot,
+            }));
 
         group.MapGet("/health/{project}", async (string project, IHttpClientFactory clientFactory, IOptions<DashboardOptions> options, CancellationToken ct) =>
         {

@@ -84,7 +84,13 @@
         "DOTNET_ENVIRONMENT": "Development",
         "DOTNET_LAUNCH_PROFILE": "http",
         "WALLET_API_HOST_PORT": "5000",
-        "WALLET_KAFKA_HOST_PORT": "19092"
+        "WALLET_KAFKA_HOST_PORT": "19092",
+        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
+        "uriFormat": "%s"
       },
       "presentation": { "group": "PlayerWalletv2 Compare", "order": 2 }
     },
@@ -103,7 +109,13 @@
         "DOTNET_ENVIRONMENT": "Development",
         "DOTNET_LAUNCH_PROFILE": "http",
         "WALLET_API_HOST_PORT": "5001",
-        "WALLET_KAFKA_HOST_PORT": "19093"
+        "WALLET_KAFKA_HOST_PORT": "19093",
+        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
+        "uriFormat": "%s"
       },
       "presentation": { "group": "PlayerWalletv2 Compare", "order": 3 }
     },

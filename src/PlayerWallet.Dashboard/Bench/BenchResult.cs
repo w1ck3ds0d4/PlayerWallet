@@ -32,8 +32,11 @@ public sealed class BenchRun
     public BenchStatus Status { get; set; } = BenchStatus.Pending;
     public string? StatusDetail { get; set; }
     public string? Error { get; set; }
-    public List<ScenarioOutcome> Outcomes { get; } = [];
+    public List<ScenarioOutcome> Outcomes { get; set; } = [];
     public int WarmUpSeconds { get; init; }
     public int DurationSeconds { get; init; }
     public int RequestsPerSecond { get; init; }
+
+    /// <summary>Absolute path to the per-run folder under the dashboard's reports root. Holds NBomber's HTML/CSV/MD/TXT reports plus summary.json. Set by <see cref="BenchRunner"/> on run start.</summary>
+    public string? FolderPath { get; set; }
 }
