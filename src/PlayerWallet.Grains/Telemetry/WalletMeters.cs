@@ -49,4 +49,22 @@ public static class WalletMeters
             }
         } while (Interlocked.CompareExchange(ref _maxOutboxDepth, depth, current) != current);
     }
+
+    /// <summary>Histogram of drainer batch sizes. Useful to spot whether the drainer is keeping up (small batches = pace matches arrivals) or behind (consistently maxing out the batch cap).</summary>
+    public static readonly Histogram<int> DrainerBatchSize = Meter.CreateHistogram<int>(
+        "wallet.drainer.batch_size",
+        unit: "{events}",
+        description: "Number of rows claimed per drainer batch.");
+
+    /// <summary>Histogram of full drainer cycle wall time (claim + publish + mark + commit).</summary>
+    public static readonly Histogram<double> DrainerBatchDuration = Meter.CreateHistogram<double>(
+        "wallet.drainer.batch_duration_ms",
+        unit: "ms",
+        description: "Wall time of one drainer cycle from claim to commit.");
+
+    /// <summary>Histogram of just the Kafka publish phase. Sub-component of batch duration so you can see whether the drainer is Postgres-bound (claim/commit dominates) or Kafka-bound (publish dominates).</summary>
+    public static readonly Histogram<double> DrainerPublishDuration = Meter.CreateHistogram<double>(
+        "wallet.drainer.publish_duration_ms",
+        unit: "ms",
+        description: "Time spent in the Kafka publish phase per batch.");
 }

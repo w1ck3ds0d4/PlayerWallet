@@ -282,6 +282,59 @@ document.addEventListener('click', (e) => {
 
 $('#run').addEventListener('click', startRun);
 
+async function refreshDbStats() {
+  const container = $('#db-stats-body');
+  container.innerHTML = '<div class="muted">Loading...</div>';
+  try {
+    const results = await fetch('/api/db-stats').then(r => r.json());
+    container.innerHTML = '';
+    for (const r of results) {
+      const card = document.createElement('div');
+      card.className = 'project-card';
+      const project = state.projects.find(p => p.name === r.project);
+      card.style.borderLeftColor = project?.color || '#888';
+      if (!r.ok) {
+        card.innerHTML = `<h3>${r.project} <span class="badge bad">${r.statusCode || 'err'}</span></h3><div class="muted" style="font-size:12px;">${r.note}</div>`;
+      } else {
+        const tables = r.data.tables || [];
+        const tableHtml = tables.map(t => `
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px;">
+            <div style="font-weight:600;color:var(--accent);grid-column:1/3;">${t.tableName}</div>
+            <div class="muted">size (total / table / index)</div><div class="val">${formatBytes(t.totalSizeBytes)} / ${formatBytes(t.tableSizeBytes)} / ${formatBytes(t.indexesSizeBytes)}</div>
+            <div class="muted">live / dead tuples</div><div class="val">${t.liveTuples.toLocaleString()} / <span style="color:${t.deadTuples > t.liveTuples * 0.3 ? 'var(--bad)' : 'var(--text)'}">${t.deadTuples.toLocaleString()}</span></div>
+            <div class="muted">inserts / updates / deletes</div><div class="val">${t.inserts.toLocaleString()} / ${t.updates.toLocaleString()} / ${t.deletes.toLocaleString()}</div>
+            <div class="muted">HOT updates</div><div class="val">${t.hotUpdates.toLocaleString()} (${t.updates > 0 ? Math.round(100 * t.hotUpdates / t.updates) : 0}% of updates)</div>
+            <div class="muted">autovacuum count</div><div class="val">${t.autovacuumCount} (last: ${formatTimestamp(t.lastAutovacuum)})</div>
+            <div class="muted">manual vacuum count</div><div class="val">${t.vacuumCount} (last: ${formatTimestamp(t.lastVacuum)})</div>
+          </div>
+        `).join('');
+        card.innerHTML = `<h3>${r.project} <span class="badge ok">db-stats</span></h3><div class="muted" style="font-size:11px;margin-bottom:8px;">Sampled at ${new Date(r.data.sampledAt).toLocaleTimeString()}</div>${tableHtml}`;
+      }
+      container.appendChild(card);
+    }
+  } catch (e) {
+    container.innerHTML = `<div class="muted">Failed to load: ${e.message}</div>`;
+  }
+}
+
+function formatBytes(b) {
+  if (!b || b < 1024) return `${b || 0} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  if (b < 1024 * 1024 * 1024) return `${(b / 1024 / 1024).toFixed(1)} MB`;
+  return `${(b / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function formatTimestamp(ts) {
+  if (!ts) return 'never';
+  const d = new Date(ts);
+  const ageMs = Date.now() - d.getTime();
+  if (ageMs < 60_000) return `${Math.round(ageMs / 1000)}s ago`;
+  if (ageMs < 3600_000) return `${Math.round(ageMs / 60_000)}m ago`;
+  return d.toLocaleTimeString();
+}
+
+$('#refresh-db-stats').addEventListener('click', refreshDbStats);
+
 $('#reset-outboxes').addEventListener('click', async () => {
   const btn = $('#reset-outboxes');
   btn.disabled = true;
@@ -302,5 +355,7 @@ $('#reset-outboxes').addEventListener('click', async () => {
 
 loadProjects().then(() => {
   refreshHistory();
+  refreshDbStats();
   setInterval(refreshHealth, 5000);
+  setInterval(refreshDbStats, 30_000);
 });

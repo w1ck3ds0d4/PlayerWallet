@@ -108,6 +108,38 @@ public static class DashboardEndpoints
             return run is null ? Results.NotFound() : Results.Ok(run);
         });
 
+        // Proxies the dev-only /admin/db-stats endpoint on each project so the dashboard can
+        // surface pg_stat_user_tables without anyone shelling into psql. Same v1-vs-v2 asymmetry
+        // as reset-outbox: only v2 ships the endpoint, v1 reports unavailable.
+        group.MapGet("/db-stats", async (IHttpClientFactory clientFactory, IOptions<DashboardOptions> options, CancellationToken ct) =>
+        {
+            var results = new List<object>();
+            foreach (var project in options.Value.Projects)
+            {
+                var client = clientFactory.CreateClient(project.Name);
+                client.BaseAddress = new Uri(project.Url);
+                client.Timeout = TimeSpan.FromSeconds(5);
+                try
+                {
+                    using var resp = await client.GetAsync("/admin/db-stats", ct);
+                    if (resp.IsSuccessStatusCode)
+                    {
+                        var body = await resp.Content.ReadAsStringAsync(ct);
+                        results.Add(new { project = project.Name, ok = true, data = System.Text.Json.JsonDocument.Parse(body).RootElement });
+                    }
+                    else
+                    {
+                        results.Add(new { project = project.Name, ok = false, statusCode = (int)resp.StatusCode, note = "endpoint not available (only v2 exposes /admin/db-stats in Development)" });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new { project = project.Name, ok = false, statusCode = 0, note = ex.Message });
+                }
+            }
+            return Results.Ok(results);
+        });
+
         // Proxies the dev-only /admin/reset-outbox endpoint on each configured project so a single
         // dashboard click can wipe wallet_outbox on both v1 and v2 before a clean-slate bench.
         // Best-effort: v1 doesn't ship the endpoint so it returns a not-supported note in the

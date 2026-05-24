@@ -78,6 +78,7 @@ if (usingPostgres)
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(tunedStoreConnectionString));
     builder.Services.AddSingleton<IWalletStateStore, PostgresWalletStateStore>();
     builder.Services.AddHostedService<WalletOutboxDrainer>();
+    builder.Services.AddHostedService<OutboxRetentionService>();
 }
 else
 {
@@ -145,6 +146,70 @@ if (usingPostgres && app.Environment.IsDevelopment())
     })
     .WithTags("Admin")
     .WithSummary("Dev-only: TRUNCATE + VACUUM wallet_outbox for a clean bench slate.");
+
+    // v2.4 admin endpoint: snapshot of pg_stat_user_tables for the wallet tables. Exposes live/dead tuple counts, insert/update/HOT-update breakdown, last autovacuum time, and table+index size. Used by the dashboard's DB stats panel to make Postgres behaviour visible during benches without having to shell into psql.
+    app.MapGet("/admin/db-stats", async (NpgsqlDataSource dataSource, CancellationToken ct) =>
+    {
+        const string sql = """
+            SELECT
+                relname AS table_name,
+                COALESCE(n_live_tup, 0)        AS n_live_tup,
+                COALESCE(n_dead_tup, 0)        AS n_dead_tup,
+                COALESCE(n_tup_ins, 0)         AS n_tup_ins,
+                COALESCE(n_tup_upd, 0)         AS n_tup_upd,
+                COALESCE(n_tup_del, 0)         AS n_tup_del,
+                COALESCE(n_tup_hot_upd, 0)     AS n_tup_hot_upd,
+                last_vacuum,
+                last_autovacuum,
+                last_analyze,
+                last_autoanalyze,
+                COALESCE(vacuum_count, 0)      AS vacuum_count,
+                COALESCE(autovacuum_count, 0)  AS autovacuum_count,
+                COALESCE(pg_total_relation_size(relid), 0) AS total_size_bytes,
+                COALESCE(pg_table_size(relid), 0)          AS table_size_bytes,
+                COALESCE(pg_indexes_size(relid), 0)        AS indexes_size_bytes
+            FROM pg_stat_user_tables
+            WHERE relname IN ('wallet_state', 'wallet_outbox')
+            ORDER BY relname
+            """;
+
+        await using var connection = await dataSource.OpenConnectionAsync(ct);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+
+        var rows = new List<object>();
+        while (await reader.ReadAsync(ct))
+        {
+            var lastVacuum     = await reader.IsDBNullAsync(7, ct)  ? (DateTime?)null : reader.GetDateTime(7);
+            var lastAutovacuum = await reader.IsDBNullAsync(8, ct)  ? (DateTime?)null : reader.GetDateTime(8);
+            var lastAnalyze    = await reader.IsDBNullAsync(9, ct)  ? (DateTime?)null : reader.GetDateTime(9);
+            var lastAutoanalyze = await reader.IsDBNullAsync(10, ct) ? (DateTime?)null : reader.GetDateTime(10);
+
+            rows.Add(new
+            {
+                tableName            = reader.GetString(0),
+                liveTuples           = reader.GetInt64(1),
+                deadTuples           = reader.GetInt64(2),
+                inserts              = reader.GetInt64(3),
+                updates              = reader.GetInt64(4),
+                deletes              = reader.GetInt64(5),
+                hotUpdates           = reader.GetInt64(6),
+                lastVacuum,
+                lastAutovacuum,
+                lastAnalyze,
+                lastAutoanalyze,
+                vacuumCount          = reader.GetInt64(11),
+                autovacuumCount      = reader.GetInt64(12),
+                totalSizeBytes       = reader.GetInt64(13),
+                tableSizeBytes       = reader.GetInt64(14),
+                indexesSizeBytes     = reader.GetInt64(15),
+            });
+        }
+
+        return Results.Ok(new { sampledAt = DateTimeOffset.UtcNow, tables = rows });
+    })
+    .WithTags("Admin")
+    .WithSummary("Dev-only: pg_stat_user_tables snapshot for wallet_state + wallet_outbox.");
 }
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });

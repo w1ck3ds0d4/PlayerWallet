@@ -42,6 +42,12 @@
     <div id="latest-result" class="empty">Run a benchmark to see numbers here.</div>
   </section>
 
+  <section class="db-stats">
+    <h2>Postgres table stats <button id="refresh-db-stats" type="button" style="background:#475569;color:#f1f5f9;font-size:11px;padding:4px 10px;margin-left:8px;">Refresh</button></h2>
+    <div class="muted" style="margin-bottom:8px;font-size:12px;">Snapshot of <code>pg_stat_user_tables</code> for <code>wallet_state</code> and <code>wallet_outbox</code>. Only v2 exposes the endpoint; v1 will show "unavailable".</div>
+    <div id="db-stats-body"></div>
+  </section>
+
   <section class="history">
     <h2>Recent runs</h2>
     <div class="muted" id="reports-root" style="margin-bottom: 8px;"></div>

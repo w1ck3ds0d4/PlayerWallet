@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Npgsql;
 using PlayerWallet.Contracts;
@@ -114,6 +115,8 @@ internal sealed class WalletOutboxDrainer(
 
     private async Task<int> DrainBatchAsync(CancellationToken cancellationToken)
     {
+        var batchSw = Stopwatch.StartNew();
+
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
@@ -124,8 +127,11 @@ internal sealed class WalletOutboxDrainer(
             return 0;
         }
 
+        var publishSw = Stopwatch.StartNew();
         var publishTasks = batch.Select(entry => PublishOneAsync(entry, cancellationToken)).ToArray();
         var outcomes = await Task.WhenAll(publishTasks);
+        publishSw.Stop();
+        WalletMeters.DrainerPublishDuration.Record(publishSw.Elapsed.TotalMilliseconds);
 
         var publishedIds = new List<long>(batch.Count);
         for (var i = 0; i < outcomes.Length; i++)
@@ -142,6 +148,9 @@ internal sealed class WalletOutboxDrainer(
         }
 
         await transaction.CommitAsync(cancellationToken);
+        batchSw.Stop();
+        WalletMeters.DrainerBatchSize.Record(publishedIds.Count);
+        WalletMeters.DrainerBatchDuration.Record(batchSw.Elapsed.TotalMilliseconds);
         return publishedIds.Count;
     }
 
