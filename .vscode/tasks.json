@@ -1,0 +1,96 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/PlayerWallet.slnx",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "build-release",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/PlayerWallet.slnx",
+        "-c",
+        "Release",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "format-check",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "format",
+        "${workspaceFolder}/PlayerWallet.slnx",
+        "--verify-no-changes"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "format-fix",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "format",
+        "${workspaceFolder}/PlayerWallet.slnx"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "test",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/PlayerWallet.slnx",
+        "-c",
+        "Release",
+        "--no-build",
+        "--logger",
+        "console;verbosity=normal"
+      ],
+      "dependsOn": "build-release",
+      "problemMatcher": "$msCompile",
+      "group": "test"
+    },
+    {
+      "label": "gates",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "format-check",
+        "build-release",
+        "test"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "load",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "-c",
+        "Release",
+        "--project",
+        "${workspaceFolder}/tests/PlayerWallet.Tests.Load"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

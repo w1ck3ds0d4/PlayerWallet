@@ -1,0 +1,57 @@
+# Build output
+bin/
+obj/
+out/
+artifacts/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+
+# Visual Studio / Rider / VS Code (user-specific only; .vscode is checked in)
+.vs/
+.vscode/*.local.*
+.idea/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# Tests
+TestResults/
+[Tt]est[Rr]esult*/
+coverage/
+*.coverage
+*.coveragexml
+.cover/
+
+# Load test reports: bench artifacts (HTML / TXT / CSV / MD) are tracked as the submission deliverable. NBomber's per-run debug log can be tens of megabytes when there are failures, so it stays ignored.
+tests/PlayerWallet.Tests.Load/reports/**/nbomber-log-*.txt
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local secrets / config overrides
+appsettings.Local.json
+*.local.json
+.env
+.env.*
+
+# Aspire dev artifacts
+**/aspire-output/
+
+# Personal prep doc (NOT for submission)
+STUDY_GUIDE.md

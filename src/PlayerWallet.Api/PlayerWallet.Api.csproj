@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Confluent.Kafka" Version="13.3.3" />
+    <PackageReference Include="Aspire.Npgsql" Version="13.3.3" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Orleans.Server" Version="10.1.0" />
+    <PackageReference Include="Npgsql" Version="10.0.2" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.14.14" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PlayerWallet.Contracts\PlayerWallet.Contracts.csproj" />
+    <ProjectReference Include="..\PlayerWallet.Grains\PlayerWallet.Grains.csproj" />
+    <ProjectReference Include="..\PlayerWallet.ServiceDefaults\PlayerWallet.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Db\Schema\*.sql" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PlayerWallet.Tests.Component" />
+  </ItemGroup>
+
+</Project>
