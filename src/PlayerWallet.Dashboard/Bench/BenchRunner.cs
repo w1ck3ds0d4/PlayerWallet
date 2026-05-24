@@ -58,28 +58,32 @@ public sealed class BenchRunner
 
     public string ReportsRoot => _reportsRoot;
 
-    public Task<BenchRun> StartAsync(string scenario, IReadOnlyList<string> projectNames, int? durationOverrideSeconds, CancellationToken cancellationToken)
+    public Task<BenchRun> StartAsync(string scenario, IReadOnlyList<string> projectNames, int? durationOverrideSeconds, int? rpsOverride, CancellationToken cancellationToken)
     {
         var dashboardOpts = _options.Value;
         var configured = dashboardOpts.Bench;
 
-        // Per-run effective options, with the duration override applied if any. Other knobs stay
+        // Per-run effective options, with any of duration/rps overrides applied. Other knobs stay
         // server-side configured so a single dashboard URL exposes a coherent bench shape.
-        // IMPORTANT: ScenarioRpsOverrides and HttpTimeoutSeconds must be copied; the dashboard JS
-        // always sends durationSeconds (the input's current value, which is non-null even on
-        // first load) so this branch is taken on every run. Forgetting to copy meant per-scenario
-        // RPS overrides were silently dropped on every benchmark.
-        var bench = durationOverrideSeconds is { } overrideDur
+        // RPS-override semantics: when the user explicitly sets rps it WINS over per-scenario
+        // overrides. The override applies to whatever scenario is picked, even if that scenario
+        // has a per-scenario cap (like hot-wallet=50). Explicit > implicit.
+        var hasAnyOverride = durationOverrideSeconds.HasValue || rpsOverride.HasValue;
+        var bench = hasAnyOverride
             ? new BenchOptions
             {
                 WarmUpSeconds = configured.WarmUpSeconds,
-                DurationSeconds = overrideDur,
-                RequestsPerSecond = configured.RequestsPerSecond,
+                DurationSeconds = durationOverrideSeconds ?? configured.DurationSeconds,
+                RequestsPerSecond = rpsOverride ?? configured.RequestsPerSecond,
                 WalletPoolSize = configured.WalletPoolSize,
                 SeedBalance = configured.SeedBalance,
                 Currency = configured.Currency,
                 HttpTimeoutSeconds = configured.HttpTimeoutSeconds,
-                ScenarioRpsOverrides = new Dictionary<string, int>(configured.ScenarioRpsOverrides, StringComparer.OrdinalIgnoreCase),
+                // When the user gave an explicit rps, clear per-scenario overrides so the explicit
+                // value wins. When they didn't, keep the per-scenario map in place.
+                ScenarioRpsOverrides = rpsOverride.HasValue
+                    ? new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, int>(configured.ScenarioRpsOverrides, StringComparer.OrdinalIgnoreCase),
             }
             : configured;
 

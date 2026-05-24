@@ -91,12 +91,20 @@ public static class DashboardEndpoints
                     statusCode: 400);
             }
 
+            if (request.RequestsPerSecond is { } rps && (rps < 10 || rps > 2000))
+            {
+                return Results.Problem(
+                    title: "Invalid rps",
+                    detail: "requestsPerSecond must be between 10 and 2000.",
+                    statusCode: 400);
+            }
+
             if (runner.IsRunning)
             {
                 return Results.Problem(title: "Bench in progress", detail: "Another benchmark is currently running. Wait for it to finish.", statusCode: 409);
             }
 
-            var run = await runner.StartAsync(request.Scenario, request.Projects, request.DurationSeconds, ct);
+            var run = await runner.StartAsync(request.Scenario, request.Projects, request.DurationSeconds, request.RequestsPerSecond, ct);
             return Results.Accepted($"/api/bench/{run.Id}", new { id = run.Id });
         });
 
@@ -181,4 +189,4 @@ public static class DashboardEndpoints
     }
 }
 
-public sealed record BenchRequest(string Scenario, string[] Projects, int? DurationSeconds = null);
+public sealed record BenchRequest(string Scenario, string[] Projects, int? DurationSeconds = null, int? RequestsPerSecond = null);

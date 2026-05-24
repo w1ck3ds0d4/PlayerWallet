@@ -28,7 +28,10 @@
       <label>Duration (s)
         <input id="duration" type="number" min="10" max="600" step="5" value="30" style="width: 80px;">
       </label>
-      <label>Projects
+      <label>RPS
+        <input id="rps" type="number" min="10" max="2000" step="50" placeholder="default" title="Requests per second per checked project. Leave blank to use the configured default (200) and per-scenario overrides (hot-wallet=50). Set explicitly e.g. 1000 for spec-grade runs." style="width: 80px;">
+      </label>
+      <label title="Uncheck one project to bench solo (recommended for high-rps runs to avoid loading the same host with 2x the work).">Projects
         <span id="project-checkboxes" class="checkbox-row"></span>
       </label>
       <button id="run" type="button">Run benchmark</button>

@@ -130,14 +130,24 @@ async function startRun() {
     return;
   }
 
+  // RPS is optional: blank input -> null -> server uses configured default + per-scenario overrides.
+  // When the user types a value it overrides both globally for this run.
+  const rpsRaw = $('#rps').value.trim();
+  const requestsPerSecond = rpsRaw === '' ? null : parseInt(rpsRaw, 10);
+  if (requestsPerSecond !== null && (!Number.isFinite(requestsPerSecond) || requestsPerSecond < 10 || requestsPerSecond > 2000)) {
+    setRunStatus('RPS must be between 10 and 2000 (or blank for default).', 'fail');
+    return;
+  }
+
   $('#run').disabled = true;
-  setRunStatus(`Starting ${scenario} (${durationSeconds ?? 'default'}s) against ${projects.join(', ')}...`, 'progress');
+  const rpsLabel = requestsPerSecond ?? 'default';
+  setRunStatus(`Starting ${scenario} (${durationSeconds ?? 'default'}s @ ${rpsLabel} rps) against ${projects.join(', ')}...`, 'progress');
 
   try {
     const resp = await fetch('/api/bench', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario, projects, durationSeconds }),
+      body: JSON.stringify({ scenario, projects, durationSeconds, requestsPerSecond }),
     });
     if (!resp.ok) {
       const err = await resp.json();
