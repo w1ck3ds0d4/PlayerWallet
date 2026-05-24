@@ -70,27 +70,40 @@ public sealed class SuiteRunner
             throw new InvalidOperationException("No valid projects to bench in the suite.");
         }
 
-        var scenarios = new[] { "add-funds", "deduct-funds", "get-balance" };
-        const int durationSeconds = 300;
-        const int rps = 1000;
+        // The Elantil spec lists 3 endpoints at 1000 rps for 5 min. Hot-wallet is an extra: it
+        // routes all traffic to ONE Orleans grain, so 1000 rps overflows the per-grain capacity
+        // (NBomber would measure HTTP timeouts, not real latency). Use the dashboard's configured
+        // per-scenario override for hot-wallet (default 50) so the step measures realistic
+        // single-grain throughput instead of queue overflow.
+        const int specDurationSeconds = 300;
+        const int specRps = 1000;
+        var hotWalletRps = _options.Value.Bench.ResolvedRpsFor("hot-wallet");
+
+        var scenarioConfigs = new (string Scenario, int Rps)[]
+        {
+            ("add-funds",    specRps),
+            ("deduct-funds", specRps),
+            ("get-balance",  specRps),
+            ("hot-wallet",   hotWalletRps),
+        };
 
         var steps = new List<SuiteStep>();
         foreach (var project in targetProjects)
         {
-            foreach (var scenario in scenarios)
+            foreach (var (scenario, rps) in scenarioConfigs)
             {
                 steps.Add(new SuiteStep
                 {
                     Scenario = scenario,
                     Project = project,
-                    DurationSeconds = durationSeconds,
+                    DurationSeconds = specDurationSeconds,
                     RequestsPerSecond = rps,
                 });
             }
         }
 
         return StartCustomSuiteAsync(
-            name: $"Spec ({targetProjects.Length} projects x {scenarios.Length} scenarios @ {durationSeconds}s x {rps}rps)",
+            name: $"Spec ({targetProjects.Length} projects x {scenarioConfigs.Length} scenarios @ {specDurationSeconds}s; spec endpoints @ {specRps}rps, hot-wallet @ {hotWalletRps}rps)",
             steps: steps,
             cancellationToken: cancellationToken);
     }
@@ -316,5 +329,33 @@ public sealed class SuiteRunner
                 _suites.TryRemove(old, out _);
             }
         }
+    }
+
+    /// <summary>Wipes in-memory suite history AND every per-suite folder under the suites root. Refuses while a suite is in flight.</summary>
+    public int ClearHistory()
+    {
+        if (IsRunning)
+        {
+            throw new InvalidOperationException("Cannot clear suite history while a suite is running.");
+        }
+
+        int removed;
+        lock (_historyLock)
+        {
+            removed = _suites.Count;
+            _suites.Clear();
+            _suiteOrder.Clear();
+        }
+
+        if (Directory.Exists(_suitesRoot))
+        {
+            foreach (var dir in Directory.EnumerateDirectories(_suitesRoot))
+            {
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to remove suite folder {Folder}.", dir); }
+            }
+        }
+
+        return removed;
     }
 }

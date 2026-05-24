@@ -212,6 +212,22 @@ public static class DashboardEndpoints
             return suite is null ? Results.NotFound() : Results.Ok(suite);
         });
 
+        // Wipe ALL bench + suite history (in-memory + on-disk). One-click "clean slate" for the
+        // operator. Refuses while a bench or suite is running (returns 409).
+        group.MapPost("/history/clear", (BenchRunner benchRunner, SuiteRunner suiteRunner) =>
+        {
+            try
+            {
+                var benches = benchRunner.ClearHistory();
+                var suites = suiteRunner.ClearHistory();
+                return Results.Ok(new { benchesCleared = benches, suitesCleared = suites });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Problem(title: "Cannot clear while running", detail: ex.Message, statusCode: 409);
+            }
+        });
+
         return app;
     }
 }

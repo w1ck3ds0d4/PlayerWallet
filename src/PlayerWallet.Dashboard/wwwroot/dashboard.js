@@ -237,24 +237,77 @@ function renderComparison(runs) {
   const tbody = $('#comparison-body');
   tbody.innerHTML = '';
 
-  const comparable = runs
-    .filter(r => r.status === 'Completed' && r.outcomes.length >= 2)
-    .filter(r => r.outcomes.some(o => o.project === 'v1') && r.outcomes.some(o => o.project === 'v2'));
+  const completed = runs.filter(r => r.status === 'Completed' && r.outcomes.length > 0);
+  const rows = [];
 
-  if (comparable.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;padding:24px;">No comparison runs yet. Run a benchmark with both v1 and v2 checked to populate this table.</td></tr>';
+  // Type 1: parallel runs (one BenchRun contains BOTH v1 and v2 outcomes). Use as-is.
+  for (const r of completed) {
+    const v1 = r.outcomes.find(o => o.project === 'v1');
+    const v2 = r.outcomes.find(o => o.project === 'v2');
+    if (v1 && v2) {
+      rows.push({
+        time: r.startedAt,
+        scenario: r.scenario,
+        durationSeconds: r.durationSeconds,
+        requestsPerSecond: r.requestsPerSecond,
+        source: 'parallel',
+        v1, v2,
+      });
+    }
+  }
+
+  // Type 2: solo runs (one BenchRun has only v1 OR v2). Pair the latest v1 with the latest v2
+  // per (scenario, durationSeconds, requestsPerSecond) tuple. This is how spec suite results
+  // (which run each project separately) show up here as comparison rows.
+  const soloByProject = { v1: new Map(), v2: new Map() }; // key -> latest run
+  for (const r of completed) {
+    if (r.outcomes.length !== 1) continue;
+    const o = r.outcomes[0];
+    if (o.project !== 'v1' && o.project !== 'v2') continue;
+    const key = `${r.scenario}|${r.durationSeconds}|${r.requestsPerSecond}`;
+    const existing = soloByProject[o.project].get(key);
+    if (!existing || new Date(r.startedAt) > new Date(existing.startedAt)) {
+      soloByProject[o.project].set(key, { run: r, outcome: o });
+    }
+  }
+  const allSoloKeys = new Set([...soloByProject.v1.keys(), ...soloByProject.v2.keys()]);
+  for (const key of allSoloKeys) {
+    const v1Entry = soloByProject.v1.get(key);
+    const v2Entry = soloByProject.v2.get(key);
+    if (!v1Entry || !v2Entry) continue; // need both sides
+    const [scenario, dur, rps] = key.split('|');
+    const time = new Date(v1Entry.run.startedAt) > new Date(v2Entry.run.startedAt)
+      ? v1Entry.run.startedAt : v2Entry.run.startedAt;
+    rows.push({
+      time,
+      scenario,
+      durationSeconds: parseInt(dur, 10),
+      requestsPerSecond: parseInt(rps, 10),
+      source: 'solo',
+      v1: v1Entry.outcome,
+      v2: v2Entry.outcome,
+    });
+  }
+
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;padding:24px;">No comparison runs yet. Run a benchmark with both v1 and v2 checked, OR run separate v1-only and v2-only benches (e.g. via Spec suite) for the same scenario.</td></tr>';
     return;
   }
 
-  for (const r of comparable) {
-    const v1 = r.outcomes.find(o => o.project === 'v1');
-    const v2 = r.outcomes.find(o => o.project === 'v2');
-    const dt = new Date(r.startedAt).toLocaleTimeString();
+  // Newest first.
+  rows.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  for (const r of rows) {
+    const dt = new Date(r.time).toLocaleTimeString();
+    const v1 = r.v1, v2 = r.v2;
+    const sourceTag = r.source === 'solo'
+      ? '<span class="muted" title="Paired from separate v1-only and v2-only runs (e.g. spec suite)" style="font-size:10px;border:1px solid var(--border);padding:1px 5px;border-radius:3px;margin-left:6px;">solo-paired</span>'
+      : '';
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${dt}</td>
-      <td>${r.scenario}</td>
+      <td>${r.scenario}${sourceTag}</td>
       <td>${r.durationSeconds}s</td>
       <td>${r.requestsPerSecond}</td>
       <td>${v1.meanMs.toFixed(2)}</td>
@@ -481,8 +534,57 @@ async function pollSuite(id) {
   }
 }
 
+async function loadLatestSuite() {
+  try {
+    const suites = await fetch('/api/suite').then(r => r.json());
+    if (!Array.isArray(suites) || suites.length === 0) return;
+    const latest = suites[0]; // most recent first by API contract
+    renderSuiteLog(latest.log || []);
+    renderSuiteSteps(latest.steps || []);
+    $('#suite-status').textContent = `Last suite: ${latest.status} - ${latest.statusDetail || ''} (${new Date(latest.startedAt).toLocaleString()})`;
+    const cls = latest.status === 'Completed' ? 'done' : (latest.status === 'Failed' || latest.status === 'Cancelled') ? 'fail' : 'progress';
+    $('#suite-status').className = `muted run-status ${cls}`;
+    // If a suite is still running when we open the page, resume polling so the UI catches up.
+    if (latest.status === 'Running' || latest.status === 'Pending') {
+      pollSuite(latest.id);
+    }
+  } catch (e) {
+    console.warn('Failed to load latest suite', e);
+  }
+}
+
+async function clearHistory() {
+  if (!confirm('Wipe ALL bench history (in-memory + on-disk reports + suites)? This cannot be undone.')) return;
+  const btn = $('#clear-history');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Clearing...';
+  try {
+    const resp = await fetch('/api/history/clear', { method: 'POST' });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      setRunStatus(`Clear failed: ${err.detail || err.title || resp.statusText}`, 'fail');
+      return;
+    }
+    const result = await resp.json();
+    setRunStatus(`Cleared ${result.benchesCleared} bench(es) and ${result.suitesCleared} suite(s).`, 'done');
+    refreshHistory();
+    renderSuiteSteps([]);
+    renderSuiteLog([{ at: new Date().toISOString(), level: 'info', message: 'History cleared. Idle.' }]);
+    $('#suite-status').textContent = '';
+  } catch (e) {
+    setRunStatus(`Clear error: ${e.message}`, 'fail');
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+}
+
 const runSuiteBtn = $('#run-suite');
 if (runSuiteBtn) runSuiteBtn.addEventListener('click', startSpecSuite);
+
+const clearHistoryBtn = $('#clear-history');
+if (clearHistoryBtn) clearHistoryBtn.addEventListener('click', clearHistory);
 
 $('#run').addEventListener('click', startRun);
 
@@ -560,6 +662,7 @@ $('#reset-outboxes').addEventListener('click', async () => {
 loadProjects().then(() => {
   refreshHistory();
   refreshDbStats();
+  loadLatestSuite();
   setInterval(refreshHealth, 5000);
   setInterval(refreshDbStats, 30_000);
 });

@@ -275,4 +275,32 @@ public sealed class BenchRunner
     }
 
     public static IReadOnlyList<string> SupportedScenarios { get; } = new[] { "get-balance", "add-funds", "deduct-funds", "hot-wallet" };
+
+    /// <summary>Wipes in-memory history AND every per-run folder under the reports root. Used by the dashboard's Clear button so the operator can start a fresh measurement session. Refuses while a bench is running to avoid pulling state out from under it.</summary>
+    public int ClearHistory()
+    {
+        if (IsRunning)
+        {
+            throw new InvalidOperationException("Cannot clear history while a benchmark is running.");
+        }
+
+        int removed;
+        lock (_historyLock)
+        {
+            removed = _runs.Count;
+            _runs.Clear();
+            _runOrder.Clear();
+        }
+
+        if (Directory.Exists(_reportsRoot))
+        {
+            foreach (var dir in Directory.EnumerateDirectories(_reportsRoot))
+            {
+                try { Directory.Delete(dir, recursive: true); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Failed to remove report folder {Folder}.", dir); }
+            }
+        }
+
+        return removed;
+    }
 }
