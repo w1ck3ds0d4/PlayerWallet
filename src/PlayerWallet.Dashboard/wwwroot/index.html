@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PlayerWallet Dashboard</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <header>
+    <h1>PlayerWallet Comparison Dashboard</h1>
+    <div class="muted" id="config-summary">Loading...</div>
+  </header>
+
+  <section class="projects" id="projects"></section>
+
+  <section class="controls">
+    <h2>Run benchmark</h2>
+    <div class="control-row">
+      <label>Scenario
+        <select id="scenario">
+          <option value="get-balance">get-balance</option>
+          <option value="add-funds" selected>add-funds</option>
+          <option value="deduct-funds">deduct-funds</option>
+        </select>
+      </label>
+      <label>Projects
+        <span id="project-checkboxes" class="checkbox-row"></span>
+      </label>
+      <button id="run" type="button">Run benchmark</button>
+      <span id="run-status" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="results">
+    <h2>Latest result</h2>
+    <div id="latest-result" class="empty">Run a benchmark to see numbers here.</div>
+  </section>
+
+  <section class="history">
+    <h2>Recent runs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Started</th>
+          <th>Scenario</th>
+          <th>Projects</th>
+          <th>Status</th>
+          <th>OK / Fail</th>
+          <th>Mean / p95 / p99 ms</th>
+        </tr>
+      </thead>
+      <tbody id="history-body"></tbody>
+    </table>
+  </section>
+
+  <script src="dashboard.js"></script>
+</body>
+</html>

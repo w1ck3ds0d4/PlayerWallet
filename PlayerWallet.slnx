@@ -3,6 +3,7 @@
     <Project Path="src/PlayerWallet.Api/PlayerWallet.Api.csproj" />
     <Project Path="src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj" />
     <Project Path="src/PlayerWallet.Contracts/PlayerWallet.Contracts.csproj" />
+    <Project Path="src/PlayerWallet.Dashboard/PlayerWallet.Dashboard.csproj" />
     <Project Path="src/PlayerWallet.Grains/PlayerWallet.Grains.csproj" />
     <Project Path="src/PlayerWallet.ServiceDefaults/PlayerWallet.ServiceDefaults.csproj" />
   </Folder>

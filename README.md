@@ -18,6 +18,12 @@ Kafka off the request path.
 > preserved verbatim as a historical record of how the original came
 > together.
 
+> **v1-vs-v2 comparison dashboard.** A standalone ASP.NET Core app at
+> [`src/PlayerWallet.Dashboard`](src/PlayerWallet.Dashboard) gives you a
+> single web UI that runs NBomber against v1 and v2 in parallel and
+> renders the latency results side by side. See
+> [Comparison dashboard](#comparison-dashboard-v1-vs-v2) below for setup.
+
 ## Architecture
 
 ```mermaid
@@ -186,6 +192,80 @@ positionally as `http://localhost:5000`. Override target RPS / warmup
 / measurement window via `WALLET_TARGET_RPS`, `WALLET_WARMUP_SECONDS`,
 and `WALLET_MEASURE_SECONDS` for perf-debugging sweeps.
 
+## Comparison dashboard (v1 vs v2)
+
+Standalone ASP.NET Core web app under
+[`src/PlayerWallet.Dashboard`](src/PlayerWallet.Dashboard). It does NOT
+import either PlayerWallet codebase, it just makes HTTP calls. Boot both
+the v1 and v2 stacks on different host ports, then start the dashboard
+and click "Run benchmark" to see latency side by side.
+
+### Boot v1 + v2 on side-by-side ports
+
+Terminal A (v1):
+
+```powershell
+cd C:\Users\danie\Documents\GitHub\repos\PlayerWallet
+dotnet run --project src/PlayerWallet.AppHost
+```
+
+Terminal B (v2 on alternate ports):
+
+```powershell
+cd C:\Users\danie\Documents\GitHub\repos\PlayerWalletv2
+$env:WALLET_API_HOST_PORT = "5001"
+$env:WALLET_KAFKA_HOST_PORT = "19093"
+dotnet run --project src/PlayerWallet.AppHost
+```
+
+Terminal C (dashboard):
+
+```powershell
+cd C:\Users\danie\Documents\GitHub\repos\PlayerWalletv2
+dotnet run --project src/PlayerWallet.Dashboard
+```
+
+Open [http://localhost:5100](http://localhost:5100) in a browser.
+
+### What the dashboard does
+
+- **Health cards.** Polls `/health/ready` on both APIs every 5 seconds and
+  shows up/down badges.
+- **Run benchmark button.** Pick a scenario (`get-balance`, `add-funds`,
+  `deduct-funds`) and which projects to target. The dashboard registers
+  both NBomber scenarios in the same runner and lets them race in
+  parallel, then renders mean / p50 / p95 / p99 / stddev / RPS per
+  project in side-by-side cards.
+- **History.** Last 20 runs in memory; click any row to re-render its
+  result cards.
+
+### Bench knobs
+
+Defaults (deliberately short so the button feels interactive):
+
+| Knob | Default | Override in `appsettings.json` |
+|---|---|---|
+| Warmup | 5 s | `Dashboard:Bench:WarmUpSeconds` |
+| Measurement | 30 s | `Dashboard:Bench:DurationSeconds` |
+| Target rps per project | 200 | `Dashboard:Bench:RequestsPerSecond` |
+| Wallet pool size | 100 | `Dashboard:Bench:WalletPoolSize` |
+
+For the full 5-minute @ 1000 rps production-grade bench, keep using
+`tests/PlayerWallet.Tests.Load` instead. The dashboard is for
+interactive comparison, not formal benchmarking.
+
+### Notes
+
+- The dashboard runs NBomber in-process. One run at a time across all
+  projects; subsequent run requests return `409 Conflict` until the
+  current run finishes.
+- Reports land in `src/PlayerWallet.Dashboard/bin/.../reports/`. The
+  dashboard renders results from the in-memory `NodeStats` so you
+  don't need to open them.
+- It's reachable from anywhere on `localhost`; you can also share it
+  on the local network by binding `0.0.0.0:5100`
+  (`ASPNETCORE_URLS=http://0.0.0.0:5100`).
+
 ## Project layout
 
 ```
@@ -197,6 +277,7 @@ src/
                                 InMemoryWalletStateStore, WalletStateJsonContext, OTel meters
   PlayerWallet.Api/             Minimal API + co-hosted silo, Kafka publisher (Kafka/),
                                 PostgresWalletStateStore + WalletOutboxDrainer + schema bootstrap (Db/)
+  PlayerWallet.Dashboard/       Standalone web app: side-by-side v1/v2 health + on-demand NBomber bench
 tests/
   PlayerWallet.Tests.Component/ xUnit: Money, grain, HTTP, Kafka propagation, end-to-end outbox
                                 pipeline test (Outbox/ - uses Testcontainers Postgres + Kafka)
