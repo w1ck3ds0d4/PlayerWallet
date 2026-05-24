@@ -1,9 +1,4 @@
-// AssemblyName is what Aspire 13.x surfaces as the application name in the dashboard title bar and OTel resource.service.name. v1's AppHost uses the default (the actual PlayerWallet.AppHost assembly name); v2 explicitly sets "PlayerWalletv2" so when both dashboards are open in browser tabs the titles distinguish them.
-var builder = DistributedApplication.CreateBuilder(new DistributedApplicationOptions
-{
-    Args = args,
-    AssemblyName = "PlayerWalletv2",
-});
+var builder = DistributedApplication.CreateBuilder(args);
 
 // Resource names stay as "postgres" / "kafka" so the API's GetConnectionString("orleans") / GetConnectionString("kafka") keys are unchanged. To run v2 side-by-side with v1 we need DISTINCT Docker container names and volume names; set PLAYERWALLET_INSTANCE_TAG to anything non-empty (default "v2") and Aspire will create v2-specific containers and volumes so the two stacks don't fight.
 var instanceTag = Environment.GetEnvironmentVariable("PLAYERWALLET_INSTANCE_TAG") ?? "v2";
