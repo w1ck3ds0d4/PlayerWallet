@@ -10,6 +10,9 @@ internal static class BenchScenarios
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    /// <summary>Number of add+deduct pairs to fire against each wallet during pre-warm. Bumped from 1 to 3 so each Npgsql connection (Min Pool Size = 4 on v2) reaches AutoPrepare's 5-call threshold per statement template before the measurement bench starts. Cuts the p99 tail caused by first-time Postgres plan compilation.</summary>
+    private const int WarmupCyclesPerWallet = 3;
+
     public static async Task SeedAndWarmAsync(HttpClient client, string[] playerIds, string projectName, decimal seedBalance, string currency, CancellationToken cancellationToken)
     {
         // Seed the pool plus the hot-wallet id so the hot-wallet scenario has funds to deduct.
@@ -34,12 +37,15 @@ internal static class BenchScenarios
             await semaphore.WaitAsync(cancellationToken);
             try
             {
-                var add = new { operationId = Guid.NewGuid(), amount = new { amount = 0.01m, currency } };
-                using var ar = await client.PostAsJsonAsync($"/wallets/{id}/add-funds", add, cancellationToken);
-                ar.EnsureSuccessStatusCode();
-                var sub = new { operationId = Guid.NewGuid(), amount = new { amount = 0.01m, currency } };
-                using var sr = await client.PostAsJsonAsync($"/wallets/{id}/deduct-funds", sub, cancellationToken);
-                sr.EnsureSuccessStatusCode();
+                for (var cycle = 0; cycle < WarmupCyclesPerWallet; cycle++)
+                {
+                    var add = new { operationId = Guid.NewGuid(), amount = new { amount = 0.01m, currency } };
+                    using var ar = await client.PostAsJsonAsync($"/wallets/{id}/add-funds", add, cancellationToken);
+                    ar.EnsureSuccessStatusCode();
+                    var sub = new { operationId = Guid.NewGuid(), amount = new { amount = 0.01m, currency } };
+                    using var sr = await client.PostAsJsonAsync($"/wallets/{id}/deduct-funds", sub, cancellationToken);
+                    sr.EnsureSuccessStatusCode();
+                }
             }
             finally { semaphore.Release(); }
         });

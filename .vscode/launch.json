@@ -109,14 +109,11 @@
     },
     {
       "name": "Dashboard (port 5100)",
-      "type": "coreclr",
+      "type": "node-terminal",
       "request": "launch",
-      "preLaunchTask": "build-dashboard",
-      "program": "${workspaceFolder}/src/PlayerWallet.Dashboard/bin/Debug/net10.0/PlayerWallet.Dashboard.dll",
-      "args": [],
+      "preLaunchTask": "kill-dashboard",
+      "command": "dotnet run --project ${workspaceFolder}/src/PlayerWallet.Dashboard --no-launch-profile",
       "cwd": "${workspaceFolder}/src/PlayerWallet.Dashboard",
-      "console": "integratedTerminal",
-      "noDebug": true,
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5100"

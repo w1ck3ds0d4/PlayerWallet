@@ -33,7 +33,10 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.ConfigureOpenTelemetryMeterProvider(metrics => metrics.AddMeter(WalletMeters.MeterName));
 builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
-    tracing.SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1))));
+    tracing
+        .SetSampler(new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1)))
+        .AddSource(WalletGrain.ActivitySource.Name)
+        .AddSource(PostgresWalletStateStore.ActivitySource.Name));
 
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -68,9 +71,10 @@ else
 // Custom state store: PostgresWalletStateStore commits state + outbox row in one transaction; WalletOutboxDrainer ships outbox to Kafka off-thread. Without Postgres, InMemoryWalletStateStore forwards events to the publisher synchronously so test assertions still see them.
 if (usingPostgres)
 {
+    // v2.1 perf: Min Pool Size dropped from 20 -> 4. Fewer idle connections mean each pooled connection sees MORE requests, so Npgsql's server-side AutoPrepare reaches its 5-call warmup threshold per statement template much sooner. Max Pool Size stays at 300 so burst capacity is unchanged.
     var tunedStoreConnectionString = AppendIfMissing(
         orleansConnectionString!,
-        "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60;Max Auto Prepare=10;Auto Prepare Min Usages=5");
+        "Maximum Pool Size=300;Minimum Pool Size=4;Pooling=true;Connection Idle Lifetime=60;Max Auto Prepare=10;Auto Prepare Min Usages=5");
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(tunedStoreConnectionString));
     builder.Services.AddSingleton<IWalletStateStore, PostgresWalletStateStore>();
     builder.Services.AddHostedService<WalletOutboxDrainer>();

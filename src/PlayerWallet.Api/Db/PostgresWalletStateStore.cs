@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using Npgsql;
 using NpgsqlTypes;
@@ -13,6 +14,9 @@ namespace PlayerWallet.Api.Db;
 /// </summary>
 internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IWalletStateStore
 {
+    /// <summary>OTel ActivitySource for store ops. Each call to <see cref="SaveAsync"/> / <see cref="LoadAsync"/> / <see cref="PersistCacheAsync"/> emits a span with timing tags so the Aspire dashboard's trace viewer can show where p99 latency goes (connection-open vs SQL execute).</summary>
+    public static readonly ActivitySource ActivitySource = new("PlayerWallet.Api.Db");
+
     private const string LoadSql = """
         SELECT balance_amount, balance_currency, recent_operations, operation_order
         FROM wallet_state
@@ -49,15 +53,26 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
 
     public async Task<WalletState?> LoadAsync(string playerId, CancellationToken cancellationToken = default)
     {
+        using var activity = ActivitySource.StartActivity("wallet.store.load", ActivityKind.Client);
+        activity?.SetTag("player_id", playerId);
+
+        var openSw = Stopwatch.StartNew();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        activity?.SetTag("connection_open_ms", openSw.Elapsed.TotalMilliseconds);
+
         await using var command = new NpgsqlCommand(LoadSql, connection);
         command.Parameters.Add(new NpgsqlParameter("player_id", NpgsqlDbType.Text) { Value = playerId });
 
+        var execSw = Stopwatch.StartNew();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         if (!await reader.ReadAsync(cancellationToken))
         {
+            activity?.SetTag("exec_ms", execSw.Elapsed.TotalMilliseconds);
+            activity?.SetTag("hit", false);
             return null;
         }
+        activity?.SetTag("exec_ms", execSw.Elapsed.TotalMilliseconds);
+        activity?.SetTag("hit", true);
 
         var balanceAmount = reader.GetDecimal(0);
         var balanceCurrency = reader.GetString(1);
@@ -89,9 +104,18 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
 
     public async Task SaveAsync(string playerId, WalletState state, IWalletEvent walletEvent, CancellationToken cancellationToken = default)
     {
-        var payloadJson = JsonSerializer.Serialize(walletEvent, walletEvent.GetType(), WalletStateJsonContext.Default);
+        using var activity = ActivitySource.StartActivity("wallet.store.save", ActivityKind.Client);
+        activity?.SetTag("player_id", playerId);
+        activity?.SetTag("event.type", walletEvent.GetType().Name);
 
+        var serSw = Stopwatch.StartNew();
+        var payloadJson = JsonSerializer.Serialize(walletEvent, walletEvent.GetType(), WalletStateJsonContext.Default);
+        activity?.SetTag("serialize_ms", serSw.Elapsed.TotalMilliseconds);
+
+        var openSw = Stopwatch.StartNew();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        activity?.SetTag("connection_open_ms", openSw.Elapsed.TotalMilliseconds);
+
         await using var command = new NpgsqlCommand(SaveSql, connection);
 
         command.Parameters.Add(new NpgsqlParameter("player_id", NpgsqlDbType.Text) { Value = playerId });
@@ -101,7 +125,9 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
         command.Parameters.Add(new NpgsqlParameter("event_type", NpgsqlDbType.Text) { Value = walletEvent.GetType().Name });
         command.Parameters.Add(new NpgsqlParameter("payload", NpgsqlDbType.Jsonb) { Value = payloadJson });
 
+        var execSw = Stopwatch.StartNew();
         await command.ExecuteNonQueryAsync(cancellationToken);
+        activity?.SetTag("exec_ms", execSw.Elapsed.TotalMilliseconds);
     }
 
     public async Task PersistCacheAsync(string playerId, WalletState state, CancellationToken cancellationToken = default)

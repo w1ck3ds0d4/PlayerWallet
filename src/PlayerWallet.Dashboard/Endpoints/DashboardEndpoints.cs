@@ -72,12 +72,20 @@ public static class DashboardEndpoints
                 return Results.Problem(title: "Invalid projects", detail: "At least one project must be specified.", statusCode: 400);
             }
 
+            if (request.DurationSeconds is { } dur && (dur < 10 || dur > 600))
+            {
+                return Results.Problem(
+                    title: "Invalid duration",
+                    detail: "durationSeconds must be between 10 and 600.",
+                    statusCode: 400);
+            }
+
             if (runner.IsRunning)
             {
                 return Results.Problem(title: "Bench in progress", detail: "Another benchmark is currently running. Wait for it to finish.", statusCode: 409);
             }
 
-            var run = await runner.StartAsync(request.Scenario, request.Projects, ct);
+            var run = await runner.StartAsync(request.Scenario, request.Projects, request.DurationSeconds, ct);
             return Results.Accepted($"/api/bench/{run.Id}", new { id = run.Id });
         });
 
@@ -93,4 +101,4 @@ public static class DashboardEndpoints
     }
 }
 
-public sealed record BenchRequest(string Scenario, string[] Projects);
+public sealed record BenchRequest(string Scenario, string[] Projects, int? DurationSeconds = null);

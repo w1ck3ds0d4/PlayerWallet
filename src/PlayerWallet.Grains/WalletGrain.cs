@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using PlayerWallet.Contracts;
 using PlayerWallet.Grains.Telemetry;
 
@@ -13,6 +14,9 @@ public sealed class WalletGrain(
     TimeProvider timeProvider,
     OutboxBackpressureGate backpressureGate) : Grain, IWalletGrain
 {
+    /// <summary>OTel ActivitySource for grain hot path. Each mutation emits a wallet.grain.mutate span with the operation tag and the rejection code when applicable, so the Aspire trace viewer can show whether a slow request was stuck in the grain queue, the store, or somewhere else.</summary>
+    public static readonly ActivitySource ActivitySource = new("PlayerWallet.Grains");
+
     private readonly IWalletStateStore _stateStore = stateStore;
     private readonly TimeProvider _timeProvider = timeProvider;
     private readonly OutboxBackpressureGate _backpressureGate = backpressureGate;
@@ -63,12 +67,17 @@ public sealed class WalletGrain(
 
     private async Task<OperationResult> ApplyMutationAsync(Guid operationId, Money amount, bool isAdd)
     {
+        using var activity = ActivitySource.StartActivity("wallet.grain.mutate", ActivityKind.Internal);
+        activity?.SetTag("operation", isAdd ? "add-funds" : "deduct-funds");
+        activity?.SetTag("player_id", this.GetPrimaryKeyString());
+
         var endpointTag = new KeyValuePair<string, object?>("endpoint", isAdd ? "add-funds" : "deduct-funds");
 
         if (_state.RecentOperations.TryGetValue(operationId, out var cached))
         {
             _state.TouchOperation(operationId);
             WalletMeters.IdempotencyHits.Add(1, endpointTag);
+            activity?.SetTag("path", "cache-hit");
             return cached;
         }
 
@@ -77,6 +86,7 @@ public sealed class WalletGrain(
 
         if (_backpressureGate.ShouldRejectNewWrites)
         {
+            activity?.SetTag("path", "backpressure-rejected");
             return OperationResult.Reject(
                 CurrentBalance(amount.Currency),
                 RejectionCode.OutboxFull,
@@ -155,6 +165,7 @@ public sealed class WalletGrain(
             (double)newBalance.Amount,
             new KeyValuePair<string, object?>("currency", newBalance.Currency));
 
+        activity?.SetTag("path", "success");
         return result;
     }
 

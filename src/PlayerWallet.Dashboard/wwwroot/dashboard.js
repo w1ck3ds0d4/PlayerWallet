@@ -23,6 +23,10 @@ async function loadProjects() {
   $('#config-summary').textContent =
     `${projects.length} projects | ${config.requestsPerSecond} rps per project ${config.warmUpSeconds}s warmup ${config.durationSeconds}s measure`;
 
+  // Seed the duration input with the server-configured default; user can override per run.
+  const durationInput = $('#duration');
+  if (durationInput) durationInput.value = config.durationSeconds;
+
   renderProjects();
   renderProjectCheckboxes();
 }
@@ -110,14 +114,21 @@ async function startRun() {
     return;
   }
 
+  const durationRaw = parseInt($('#duration').value, 10);
+  const durationSeconds = Number.isFinite(durationRaw) ? durationRaw : null;
+  if (durationSeconds !== null && (durationSeconds < 10 || durationSeconds > 600)) {
+    setRunStatus('Duration must be between 10 and 600 seconds.', 'fail');
+    return;
+  }
+
   $('#run').disabled = true;
-  setRunStatus(`Starting ${scenario} against ${projects.join(', ')}...`, 'progress');
+  setRunStatus(`Starting ${scenario} (${durationSeconds ?? 'default'}s) against ${projects.join(', ')}...`, 'progress');
 
   try {
     const resp = await fetch('/api/bench', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scenario, projects }),
+      body: JSON.stringify({ scenario, projects, durationSeconds }),
     });
     if (!resp.ok) {
       const err = await resp.json();

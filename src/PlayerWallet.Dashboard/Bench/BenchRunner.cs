@@ -31,10 +31,24 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
 
     public bool IsRunning => s_runLock.CurrentCount == 0;
 
-    public Task<BenchRun> StartAsync(string scenario, IReadOnlyList<string> projectNames, CancellationToken cancellationToken)
+    public Task<BenchRun> StartAsync(string scenario, IReadOnlyList<string> projectNames, int? durationOverrideSeconds, CancellationToken cancellationToken)
     {
         var dashboardOpts = options.Value;
-        var bench = dashboardOpts.Bench;
+        var configured = dashboardOpts.Bench;
+
+        // Per-run effective options, with the duration override applied if any. Other knobs stay
+        // server-side configured so a single dashboard URL exposes a coherent bench shape.
+        var bench = durationOverrideSeconds is { } overrideDur
+            ? new BenchOptions
+            {
+                WarmUpSeconds = configured.WarmUpSeconds,
+                DurationSeconds = overrideDur,
+                RequestsPerSecond = configured.RequestsPerSecond,
+                WalletPoolSize = configured.WalletPoolSize,
+                SeedBalance = configured.SeedBalance,
+                Currency = configured.Currency,
+            }
+            : configured;
 
         var projects = projectNames
             .Select(n => dashboardOpts.Projects.FirstOrDefault(p => string.Equals(p.Name, n, StringComparison.OrdinalIgnoreCase))

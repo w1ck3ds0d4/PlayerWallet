@@ -115,6 +115,18 @@
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "kill-dashboard",
+      "type": "shell",
+      "command": "powershell",
+      "args": [
+        "-NoProfile",
+        "-Command",
+        "Get-Process -Name PlayerWallet.Dashboard -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 300; exit 0"
+      ],
+      "presentation": { "reveal": "silent", "panel": "shared", "close": true },
+      "problemMatcher": []
     }
   ]
 }
