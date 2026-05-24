@@ -276,9 +276,23 @@ function deltaCell(v1, v2) {
     return '<td class="delta-neutral">-</td>';
   }
   const pct = ((v2 - v1) / v1) * 100;
+  const abs = Math.abs(pct);
+  // ±2% threshold: smaller than that is measurement noise on a 30s bench, so neither side wins.
+  // Arrow direction always reflects sign so even tiny differences show which way they lean.
+  let cls;
+  let arrow;
+  if (abs < 2) {
+    cls = 'delta-neutral';
+    arrow = '·';
+  } else if (pct < 0) {
+    cls = 'delta-better';
+    arrow = '▼';
+  } else {
+    cls = 'delta-worse';
+    arrow = '▲';
+  }
   const sign = pct > 0 ? '+' : '';
-  const cls = pct < -5 ? 'delta-better' : pct > 5 ? 'delta-worse' : 'delta-neutral';
-  return `<td class="${cls}">${sign}${pct.toFixed(0)}%</td>`;
+  return `<td class="${cls}">${arrow} ${sign}${pct.toFixed(0)}%</td>`;
 }
 
 async function refreshHistory() {
