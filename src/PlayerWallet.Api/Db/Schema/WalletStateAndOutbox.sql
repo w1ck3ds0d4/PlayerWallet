@@ -65,3 +65,14 @@ CREATE TABLE IF NOT EXISTS wallet_outbox
 CREATE INDEX IF NOT EXISTS idx_wallet_outbox_unpublished
     ON wallet_outbox (id)
     WHERE published_at IS NULL;
+
+-- v2.1: wallet_outbox is UNLOGGED. Postgres skips WAL writes for unlogged
+-- tables, which removes the second fsync per mutation. Trade: outbox rows
+-- are lost on Postgres crash before the drainer publishes them. Acceptable
+-- because the wallet_state row (the source of truth for balance) is still
+-- WAL-protected, and the consumer-side dedupe contract is at-least-once
+-- anyway. On crash recovery, the surviving wallet_state row may have no
+-- corresponding outbox event; this is an event-loss window the operator
+-- accepts in exchange for the throughput. Flip back to LOGGED if your
+-- compliance posture requires per-event durability.
+ALTER TABLE wallet_outbox SET UNLOGGED;

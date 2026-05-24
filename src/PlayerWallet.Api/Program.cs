@@ -70,7 +70,7 @@ if (usingPostgres)
 {
     var tunedStoreConnectionString = AppendIfMissing(
         orleansConnectionString!,
-        "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60");
+        "Maximum Pool Size=300;Minimum Pool Size=20;Pooling=true;Connection Idle Lifetime=60;Max Auto Prepare=10;Auto Prepare Min Usages=5");
     builder.Services.AddSingleton(_ => NpgsqlDataSource.Create(tunedStoreConnectionString));
     builder.Services.AddSingleton<IWalletStateStore, PostgresWalletStateStore>();
     builder.Services.AddHostedService<WalletOutboxDrainer>();

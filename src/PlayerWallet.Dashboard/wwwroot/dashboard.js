@@ -2,7 +2,13 @@ const state = {
   projects: [],
   config: null,
   pollingRunId: null,
+  /** Per-project flag: have we ever seen /health/ready succeed since the page loaded? */
+  seenHealthyOnce: {},
+  /** When the dashboard page was loaded; informs the "still starting up" grace period. */
+  pageLoadedAt: Date.now(),
 };
+
+const STARTUP_GRACE_MS = 5 * 60 * 1000;
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -29,9 +35,9 @@ function renderProjects() {
     card.className = 'project-card';
     card.style.borderLeftColor = p.color;
     card.innerHTML = `
-      <h3>${p.name} <span class="badge warn" data-health="${p.name}">checking...</span></h3>
+      <h3>${p.name} <span class="badge warn" data-health="${p.name}">starting up...</span></h3>
       <div class="url">${p.url}</div>
-      <div class="muted" data-health-detail="${p.name}" style="margin-top:6px;font-size:11px;"></div>
+      <div class="muted" data-health-detail="${p.name}" style="margin-top:6px;font-size:11px;">Waiting for the AppHost to come up. First boot pulls Postgres/Kafka images and can take a minute.</div>
     `;
     container.appendChild(card);
   }
@@ -50,26 +56,48 @@ function renderProjectCheckboxes() {
 
 async function refreshHealth() {
   await Promise.all(state.projects.map(async (p) => {
+    const badge = document.querySelector(`[data-health="${p.name}"]`);
+    const detail = document.querySelector(`[data-health-detail="${p.name}"]`);
+    if (!badge || !detail) return;
+
     try {
       const resp = await fetch(`/api/health/${p.name}`);
       const data = await resp.json();
-      const badge = document.querySelector(`[data-health="${p.name}"]`);
-      const detail = document.querySelector(`[data-health-detail="${p.name}"]`);
+      const wasHealthyBefore = state.seenHealthyOnce[p.name] === true;
+      const withinGrace = Date.now() - state.pageLoadedAt < STARTUP_GRACE_MS;
+
       if (data.healthy) {
+        state.seenHealthyOnce[p.name] = true;
         badge.className = 'badge ok';
         badge.textContent = `up (${data.statusCode})`;
+        detail.textContent = data.detail?.slice(0, 80) || '';
+      } else if (!wasHealthyBefore && withinGrace) {
+        badge.className = 'badge warn';
+        badge.textContent = 'starting up...';
+        detail.textContent = 'Waiting for the AppHost to come up. First boot pulls Postgres/Kafka images and can take a minute.';
       } else if (data.statusCode === 0) {
         badge.className = 'badge bad';
         badge.textContent = 'unreachable';
+        detail.textContent = wasHealthyBefore
+          ? 'AppHost stopped responding. Check its terminal for errors.'
+          : 'AppHost has not become reachable yet. Verify Docker is running and the AppHost terminal shows no errors.';
       } else {
         badge.className = 'badge bad';
         badge.textContent = `down (${data.statusCode})`;
+        detail.textContent = data.detail?.slice(0, 80) || '';
       }
-      detail.textContent = data.detail?.slice(0, 80) || '';
     } catch (e) {
-      const badge = document.querySelector(`[data-health="${p.name}"]`);
-      badge.className = 'badge bad';
-      badge.textContent = 'error';
+      const wasHealthyBefore = state.seenHealthyOnce[p.name] === true;
+      const withinGrace = Date.now() - state.pageLoadedAt < STARTUP_GRACE_MS;
+      if (!wasHealthyBefore && withinGrace) {
+        badge.className = 'badge warn';
+        badge.textContent = 'starting up...';
+        detail.textContent = 'Dashboard API not reachable yet.';
+      } else {
+        badge.className = 'badge bad';
+        badge.textContent = 'error';
+        detail.textContent = e.message || '';
+      }
     }
   }));
 }
@@ -106,25 +134,35 @@ async function startRun() {
   }
 }
 
+const TERMINAL_STATUSES = new Set(['Completed', 'Failed']);
+
+function isTerminalStatus(status) {
+  return TERMINAL_STATUSES.has(status) || status === 4 || status === 5;
+}
+
 async function pollRun(id) {
-  while (true) {
-    try {
-      const resp = await fetch(`/api/bench/${id}`);
-      if (!resp.ok) break;
-      const run = await resp.json();
-      renderLatestResult(run);
-      setRunStatus(`${run.status} - ${run.statusDetail || ''}`, run.status === 'Completed' ? 'done' : run.status === 'Failed' ? 'fail' : 'progress');
-      if (run.status === 'Completed' || run.status === 'Failed') {
-        $('#run').disabled = false;
-        refreshHistory();
+  try {
+    while (true) {
+      try {
+        const resp = await fetch(`/api/bench/${id}`);
+        if (!resp.ok) break;
+        const run = await resp.json();
+        renderLatestResult(run);
+        const terminal = isTerminalStatus(run.status);
+        const cssClass = terminal ? (run.status === 'Failed' || run.status === 5 ? 'fail' : 'done') : 'progress';
+        setRunStatus(`${run.status} - ${run.statusDetail || ''}`, cssClass);
+        if (terminal) {
+          refreshHistory();
+          break;
+        }
+      } catch (e) {
+        setRunStatus(`Poll error: ${e.message}`, 'fail');
         break;
       }
-    } catch (e) {
-      setRunStatus(`Poll error: ${e.message}`, 'fail');
-      $('#run').disabled = false;
-      break;
+      await new Promise(r => setTimeout(r, 1000));
     }
-    await new Promise(r => setTimeout(r, 1000));
+  } finally {
+    $('#run').disabled = false;
   }
 }
 

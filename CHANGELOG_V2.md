@@ -10,6 +10,45 @@ release for consumers.
 The v1 ENGINEERING_JOURNAL.md is preserved verbatim as a historical record of
 how the original code came together. This document covers what changed.
 
+## v2.1: hot-path performance pass
+
+After the first round of v1-vs-v2 bench comparisons via the dashboard,
+v2 was 1-2 ms slower than v1 on `add-funds` / `deduct-funds` and at risk
+of losing badly on `hot-wallet` due to `synchronous_commit=on` adding an
+fsync per mutation that v1 didn't pay. v2.1 puts v2 back ahead **without
+giving up the v2 correctness wins** (real LRU, `OperationRejected`,
+SKIP LOCKED, back-pressure gate, validation pre-grain,
+`synchronous_commit=on`).
+
+| # | Change | File(s) | Expected impact |
+|---|---|---|---|
+| 14 | `PostgresWalletStateStore.SaveAsync` collapsed to a single CTE round-trip. v1 sent `BEGIN; UPSERT; INSERT outbox; COMMIT` (four round-trips, one fsync). v2.1 sends one statement: `WITH state_upsert AS (UPSERT) INSERT INTO wallet_outbox SELECT FROM state_upsert`. Implicit single transaction, one round-trip, one fsync. | [`PostgresWalletStateStore.cs`](src/PlayerWallet.Api/Db/PostgresWalletStateStore.cs) | Removes ~3 network round-trips per mutation. Typically 2-4 ms saved at sustained load. |
+| 15 | `Max Auto Prepare=10` + `Auto Prepare Min Usages=5` on the Npgsql connection string. After the 5th call Npgsql server-side prepares the statement, skipping parse/plan cost. | [`Program.cs`](src/PlayerWallet.Api/Program.cs) | ~0.5-1 ms saved per mutation once steady-state. |
+| 16 | `wallet_outbox` table is `UNLOGGED`. Postgres skips WAL writes for unlogged tables. Trade: outbox rows lost on Postgres crash before the drainer publishes them (wallet_state remains WAL-protected). Consumer dedupe is at-least-once anyway. Flip back to LOGGED in production where compliance requires per-event durability. | [`WalletStateAndOutbox.sql`](src/PlayerWallet.Api/Db/Schema/WalletStateAndOutbox.sql) | Removes the second fsync per mutation. Big win on hot-wallet. |
+| 17 | Idempotency cache is no longer persisted on every mutation. `SaveAsync` only writes balance + outbox; `recent_operations` / `operation_order` JSONB columns are flushed via `PersistCacheAsync` from `WalletGrain.OnDeactivateAsync`. As the cache filled toward 256 entries v2 was rewriting ~10 KB of JSON per mutation; v2.1 hot path writes are now bounded to two NUMERIC + one TEXT + one JSONB payload (the event itself). | [`WalletGrain.cs`](src/PlayerWallet.Grains/WalletGrain.cs), [`PostgresWalletStateStore.cs`](src/PlayerWallet.Api/Db/PostgresWalletStateStore.cs), [`IWalletStateStore.cs`](src/PlayerWallet.Grains/IWalletStateStore.cs), [`InMemoryWalletStateStore.cs`](src/PlayerWallet.Grains/InMemoryWalletStateStore.cs) | Biggest single win at high mutation counts. Trade: process crash before deactivation loses the un-flushed cache; retries within seconds normally hit the same activation and dedupe before any persistence is involved (Orleans default activation idle = 5 min). |
+
+### v2.1 honest caveats
+
+- The UNLOGGED outbox is a **dev/bench config**. Production with
+  compliance requirements should `ALTER TABLE wallet_outbox SET LOGGED`,
+  which costs the second fsync back but preserves event-level durability.
+- The OnDeactivate cache flush is best-effort. On process kill (-9,
+  power loss), the in-memory cache for actively used grains is lost.
+  This is acceptable for the wallet domain because (a) state is still
+  durable, (b) idempotency is a retry-storm defence not a correctness
+  requirement, (c) the worst case is "this operationId got applied
+  twice" which the existing event-id dedupe on consumers catches.
+- `Max Auto Prepare=10` warms up over the first ~50 mutations. Short
+  benchmarks (the dashboard's 30 s default) may not fully amortise the
+  warm-up cost.
+
+All 68 component tests still pass against v2.1. The hot-path Postgres
+contract is intentionally narrower than v2 (no cache columns in the
+write SQL) but `LoadAsync` and `PersistCacheAsync` together preserve
+the original semantic across a clean restart.
+
+## v2.0 changes
+
 ## Headline changes
 
 | # | Change | File(s) | Risk if shipped without it |

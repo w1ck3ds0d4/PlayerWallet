@@ -91,6 +91,30 @@
         "${workspaceFolder}/tests/PlayerWallet.Tests.Load"
       ],
       "problemMatcher": []
+    },
+    {
+      "label": "build-v1-apphost",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-dashboard",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/src/PlayerWallet.Dashboard/PlayerWallet.Dashboard.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
     }
   ]
 }

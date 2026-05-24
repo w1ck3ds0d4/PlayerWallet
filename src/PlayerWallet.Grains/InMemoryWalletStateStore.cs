@@ -30,6 +30,15 @@ public sealed class InMemoryWalletStateStore(IWalletEventPublisher publisher) : 
         }
     }
 
+    public Task PersistCacheAsync(string playerId, WalletState state, CancellationToken cancellationToken = default)
+    {
+        // The in-memory store keeps the whole state on every SaveAsync, so the cache is already
+        // in _states. Nothing else to do here; the deactivation flush exists for the Postgres
+        // store which deliberately skips cache columns on the hot path.
+        _states[playerId] = Clone(state);
+        return Task.CompletedTask;
+    }
+
     /// <summary>Deep-copies the state on the boundary; <see cref="WalletState"/> has mutable collections and two grains for the same player must not share them.</summary>
     private static WalletState Clone(WalletState source)
     {

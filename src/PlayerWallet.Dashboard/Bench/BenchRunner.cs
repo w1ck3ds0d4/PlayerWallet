@@ -84,8 +84,8 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
                 client.Timeout = TimeSpan.FromSeconds(30);
 
                 var ids = BenchScenarios.BuildPlayerIds(project.Name, bench.WalletPoolSize);
-                logger.LogInformation("Seeding {Count} wallets for project {Project} at {Url}.", ids.Length, project.Name, project.Url);
-                await BenchScenarios.SeedAndWarmAsync(client, ids, bench.SeedBalance, bench.Currency, cancellationToken);
+                logger.LogInformation("Seeding {Count} wallets (+1 hot) for project {Project} at {Url}.", ids.Length, project.Name, project.Url);
+                await BenchScenarios.SeedAndWarmAsync(client, ids, project.Name, bench.SeedBalance, bench.Currency, cancellationToken);
 
                 perProject.Add((project, client, ids));
             }
@@ -140,5 +140,5 @@ public sealed class BenchRunner(IHttpClientFactory clientFactory, IOptions<Dashb
         }
     }
 
-    public static IReadOnlyList<string> SupportedScenarios { get; } = new[] { "get-balance", "add-funds", "deduct-funds" };
+    public static IReadOnlyList<string> SupportedScenarios { get; } = new[] { "get-balance", "add-funds", "deduct-funds", "hot-wallet" };
 }

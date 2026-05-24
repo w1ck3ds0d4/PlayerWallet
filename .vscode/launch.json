@@ -21,7 +21,7 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWallet", "order": 1 }
+      "presentation": { "group": "PlayerWalletv2", "order": 1 }
     },
     {
       "name": "Run AppHost (no debug)",
@@ -43,7 +43,7 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWallet", "order": 2 }
+      "presentation": { "group": "PlayerWalletv2", "order": 2 }
     },
     {
       "name": "Run Load Benchmarks (NBomber)",
@@ -58,7 +58,7 @@
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
       },
-      "presentation": { "group": "PlayerWallet", "order": 3 }
+      "presentation": { "group": "PlayerWalletv2", "order": 3 }
     },
     {
       "name": "Open Scalar API UI",
@@ -67,7 +67,66 @@
       "url": "https://localhost:7223/scalar/v1",
       "webRoot": "${workspaceFolder}/src/PlayerWallet.Api",
       "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
-      "presentation": { "group": "PlayerWallet", "order": 4 }
+      "presentation": { "group": "PlayerWalletv2", "order": 4 }
+    },
+    {
+      "name": "v1 AppHost (port 5000)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-v1-apphost",
+      "program": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "args": [],
+      "cwd": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost",
+      "console": "integratedTerminal",
+      "noDebug": true,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_LAUNCH_PROFILE": "http",
+        "WALLET_API_HOST_PORT": "5000",
+        "WALLET_KAFKA_HOST_PORT": "19092"
+      },
+      "presentation": { "group": "PlayerWalletv2 Compare", "order": 2 }
+    },
+    {
+      "name": "v2 AppHost (port 5001)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "console": "integratedTerminal",
+      "noDebug": true,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "DOTNET_LAUNCH_PROFILE": "http",
+        "WALLET_API_HOST_PORT": "5001",
+        "WALLET_KAFKA_HOST_PORT": "19093"
+      },
+      "presentation": { "group": "PlayerWalletv2 Compare", "order": 3 }
+    },
+    {
+      "name": "Dashboard (port 5100)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-dashboard",
+      "program": "${workspaceFolder}/src/PlayerWallet.Dashboard/bin/Debug/net10.0/PlayerWallet.Dashboard.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PlayerWallet.Dashboard",
+      "console": "integratedTerminal",
+      "noDebug": true,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5100"
+      },
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "Now listening on:\\s+(https?://\\S+)",
+        "uriFormat": "%s"
+      },
+      "presentation": { "group": "PlayerWalletv2 Compare", "order": 4 }
     }
   ],
   "compounds": [
@@ -75,7 +134,17 @@
       "name": "AppHost + Scalar UI",
       "configurations": ["Run AppHost (Aspire)", "Open Scalar API UI"],
       "stopAll": true,
-      "presentation": { "group": "PlayerWallet", "order": 0 }
+      "presentation": { "group": "PlayerWalletv2", "order": 0 }
+    },
+    {
+      "name": "Compare: v1 + v2 + Dashboard",
+      "configurations": [
+        "v1 AppHost (port 5000)",
+        "v2 AppHost (port 5001)",
+        "Dashboard (port 5100)"
+      ],
+      "stopAll": true,
+      "presentation": { "group": "PlayerWalletv2 Compare", "order": 1 }
     }
   ]
 }

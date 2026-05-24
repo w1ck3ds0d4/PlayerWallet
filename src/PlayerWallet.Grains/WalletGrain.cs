@@ -29,6 +29,30 @@ public sealed class WalletGrain(
         }
     }
 
+    /// <summary>
+    /// v2.1: flush the idempotency cache to Postgres on clean grain deactivation. The hot-path
+    /// <see cref="IWalletStateStore.SaveAsync"/> no longer writes cache columns; this is the
+    /// only place they are persisted. If the process crashes before deactivation, the un-flushed
+    /// cache is lost and retries that cross a re-activation will execute as fresh ops.
+    /// </summary>
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (_state.Initialized)
+            {
+                await _stateStore.PersistCacheAsync(this.GetPrimaryKeyString(), _state, cancellationToken);
+            }
+        }
+        catch
+        {
+            // Swallow: deactivation cannot fail the grain. Lost cache means at most a small number
+            // of retries within the next activation re-execute; underlying state is consistent.
+        }
+
+        await base.OnDeactivateAsync(reason, cancellationToken);
+    }
+
     public Task<Money> GetBalanceAsync() => Task.FromResult(_state.Balance);
 
     public Task<OperationResult> AddFundsAsync(Guid operationId, Money amount) =>

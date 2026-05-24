@@ -10,10 +10,13 @@ internal static class BenchScenarios
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public static async Task SeedAndWarmAsync(HttpClient client, string[] playerIds, decimal seedBalance, string currency, CancellationToken cancellationToken)
+    public static async Task SeedAndWarmAsync(HttpClient client, string[] playerIds, string projectName, decimal seedBalance, string currency, CancellationToken cancellationToken)
     {
+        // Seed the pool plus the hot-wallet id so the hot-wallet scenario has funds to deduct.
+        var allIds = playerIds.Append(HotWalletId(projectName)).ToArray();
+
         var semaphore = new SemaphoreSlim(32);
-        var seedTasks = playerIds.Select(async id =>
+        var seedTasks = allIds.Select(async id =>
         {
             await semaphore.WaitAsync(cancellationToken);
             try
@@ -26,7 +29,7 @@ internal static class BenchScenarios
         });
         await Task.WhenAll(seedTasks);
 
-        var warmTasks = playerIds.Select(async id =>
+        var warmTasks = allIds.Select(async id =>
         {
             await semaphore.WaitAsync(cancellationToken);
             try
@@ -58,8 +61,9 @@ internal static class BenchScenarios
                     ? Response.Ok(statusCode: ((int)resp.StatusCode).ToString())
                     : Response.Fail(statusCode: ((int)resp.StatusCode).ToString());
             }),
-            "add-funds" => BuildPost(name, client, playerIds, "/add-funds", opts),
-            "deduct-funds" => BuildPost(name, client, playerIds, "/deduct-funds", opts),
+            "add-funds" => BuildPost(name, client, _ => playerIds[Random.Shared.Next(playerIds.Length)], "/add-funds", opts),
+            "deduct-funds" => BuildPost(name, client, _ => playerIds[Random.Shared.Next(playerIds.Length)], "/deduct-funds", opts),
+            "hot-wallet" => BuildPost(name, client, _ => HotWalletId(projectName), "/deduct-funds", opts),
             _ => throw new ArgumentException($"Unknown scenario '{scenario}'.", nameof(scenario)),
         };
 
@@ -71,11 +75,11 @@ internal static class BenchScenarios
                 during: TimeSpan.FromSeconds(opts.DurationSeconds)));
     }
 
-    private static ScenarioProps BuildPost(string name, HttpClient client, string[] playerIds, string path, BenchOptions opts)
+    private static ScenarioProps BuildPost(string name, HttpClient client, Func<Random, string> playerIdSelector, string path, BenchOptions opts)
     {
         return Scenario.Create(name, async ctx =>
         {
-            var id = playerIds[ctx.Random.Next(playerIds.Length)];
+            var id = playerIdSelector(ctx.Random);
             var body = JsonSerializer.Serialize(new
             {
                 operationId = Guid.NewGuid(),
@@ -92,4 +96,7 @@ internal static class BenchScenarios
 
     public static string[] BuildPlayerIds(string projectName, int count) =>
         Enumerable.Range(0, count).Select(i => $"dash-{projectName}-{i:D4}").ToArray();
+
+    /// <summary>Per-project hot-wallet id, kept distinct from the pooled wallets so the bench targets it exclusively.</summary>
+    public static string HotWalletId(string projectName) => $"dash-{projectName}-hot";
 }
