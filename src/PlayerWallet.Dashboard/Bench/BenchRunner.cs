@@ -65,6 +65,10 @@ public sealed class BenchRunner
 
         // Per-run effective options, with the duration override applied if any. Other knobs stay
         // server-side configured so a single dashboard URL exposes a coherent bench shape.
+        // IMPORTANT: ScenarioRpsOverrides and HttpTimeoutSeconds must be copied; the dashboard JS
+        // always sends durationSeconds (the input's current value, which is non-null even on
+        // first load) so this branch is taken on every run. Forgetting to copy meant per-scenario
+        // RPS overrides were silently dropped on every benchmark.
         var bench = durationOverrideSeconds is { } overrideDur
             ? new BenchOptions
             {
@@ -74,6 +78,8 @@ public sealed class BenchRunner
                 WalletPoolSize = configured.WalletPoolSize,
                 SeedBalance = configured.SeedBalance,
                 Currency = configured.Currency,
+                HttpTimeoutSeconds = configured.HttpTimeoutSeconds,
+                ScenarioRpsOverrides = new Dictionary<string, int>(configured.ScenarioRpsOverrides, StringComparer.OrdinalIgnoreCase),
             }
             : configured;
 
