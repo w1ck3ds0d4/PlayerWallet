@@ -114,7 +114,7 @@ public sealed class WalletGrainTests(WalletGrainTestCluster cluster)
     }
 
     [Fact]
-    public async Task Insufficient_Funds_Publishes_DeductionRejected_Event()
+    public async Task Insufficient_Funds_Publishes_OperationRejected_Event()
     {
         var playerId = $"rejected-{Guid.NewGuid():N}";
         cluster.Publisher.Clear();
@@ -122,12 +122,38 @@ public sealed class WalletGrainTests(WalletGrainTestCluster cluster)
         await wallet.AddFundsAsync(Guid.NewGuid(), new Money(20m, "EUR"));
         await wallet.DeductFundsAsync(Guid.NewGuid(), new Money(100m, "EUR"));
         var rejected = cluster.Publisher.Published
-            .OfType<DeductionRejected>()
+            .OfType<OperationRejected>()
             .Where(e => e.PlayerId == playerId)
             .ToList();
         Assert.Single(rejected);
         Assert.Equal(RejectionCode.InsufficientFunds, rejected[0].Reason);
         Assert.Equal(new Money(100m, "EUR"), rejected[0].RequestedAmount);
         Assert.Equal(new Money(20m, "EUR"), rejected[0].CurrentBalance);
+    }
+
+    [Fact]
+    public async Task Invalid_Amount_Does_Not_Publish_Event()
+    {
+        var playerId = $"invalid-{Guid.NewGuid():N}";
+        cluster.Publisher.Clear();
+        var wallet = cluster.Wallet(playerId);
+        var result = await wallet.AddFundsAsync(Guid.NewGuid(), new Money(0m, "EUR"));
+        Assert.False(result.Succeeded);
+        Assert.Equal(RejectionCode.InvalidAmount, result.RejectionCode);
+        Assert.DoesNotContain(cluster.Publisher.Published, e => e.PlayerId == playerId);
+    }
+
+    [Fact]
+    public async Task Currency_Mismatch_Does_Not_Publish_Event()
+    {
+        var playerId = $"mismatch-{Guid.NewGuid():N}";
+        cluster.Publisher.Clear();
+        var wallet = cluster.Wallet(playerId);
+        await wallet.AddFundsAsync(Guid.NewGuid(), new Money(100m, "EUR"));
+        cluster.Publisher.Clear();
+        var result = await wallet.AddFundsAsync(Guid.NewGuid(), new Money(50m, "USD"));
+        Assert.False(result.Succeeded);
+        Assert.Equal(RejectionCode.CurrencyMismatch, result.RejectionCode);
+        Assert.DoesNotContain(cluster.Publisher.Published, e => e.PlayerId == playerId);
     }
 }

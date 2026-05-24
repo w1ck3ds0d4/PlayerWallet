@@ -2,6 +2,7 @@ using System.Text.Json;
 using Npgsql;
 using PlayerWallet.Contracts;
 using PlayerWallet.Grains;
+using PlayerWallet.Grains.Telemetry;
 
 namespace PlayerWallet.Api.Db;
 
@@ -9,14 +10,17 @@ namespace PlayerWallet.Api.Db;
 /// Background service that polls <c>wallet_outbox</c> for unpublished rows, forwards them to <see cref="IWalletEventPublisher"/>, and marks <c>published_at</c> on success.
 /// Decouples Kafka from the HTTP path: the grain commits balance + outbox row atomically and returns; this drainer ships the event off-thread. Crash recovery: unpublished rows survive process restart and re-publish on the next poll (at-least-once; consumer dedupes on <c>event_id</c>).
 /// Publishes via <c>Task.WhenAll</c>; sequential publishes would cap drainer throughput at 1/broker-ack-latency (~200 evt/s on Acks=Leader). MaxInFlight is bounded by the Kafka producer config.
+/// v2: each claim cycle holds a Postgres transaction with FOR UPDATE SKIP LOCKED so multiple API instances can drain non-overlapping shards without double-publishing.
 /// </summary>
 internal sealed class WalletOutboxDrainer(
     NpgsqlDataSource dataSource,
     IWalletEventPublisher publisher,
+    OutboxBackpressureGate gate,
     ILogger<WalletOutboxDrainer> logger) : BackgroundService
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(25);
     private static readonly TimeSpan IdleInterval = TimeSpan.FromMilliseconds(100);
+    private static readonly TimeSpan GateRefreshInterval = TimeSpan.FromSeconds(2);
     private const int BatchSize = 200;
 
     private static readonly string ClaimSql = $"""
@@ -25,6 +29,7 @@ internal sealed class WalletOutboxDrainer(
         WHERE published_at IS NULL
         ORDER BY id
         LIMIT {BatchSize}
+        FOR UPDATE SKIP LOCKED
         """;
 
     private const string MarkPublishedSql = """
@@ -32,6 +37,12 @@ internal sealed class WalletOutboxDrainer(
         SET published_at = NOW()
         WHERE id = ANY(@ids)
         """;
+
+    private const string PendingCountSql = """
+        SELECT COUNT(*) FROM wallet_outbox WHERE published_at IS NULL
+        """;
+
+    private DateTime _nextGateRefreshUtc = DateTime.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -46,6 +57,7 @@ internal sealed class WalletOutboxDrainer(
             try
             {
                 var drained = await DrainBatchAsync(stoppingToken);
+                await RefreshGateIfDueAsync(drained, stoppingToken);
                 await Task.Delay(drained == 0 ? IdleInterval : PollInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -65,9 +77,13 @@ internal sealed class WalletOutboxDrainer(
 
     private async Task<int> DrainBatchAsync(CancellationToken cancellationToken)
     {
-        var batch = await ClaimBatchAsync(cancellationToken);
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        var batch = await ClaimBatchAsync(connection, transaction, cancellationToken);
         if (batch.Count == 0)
         {
+            await transaction.CommitAsync(cancellationToken);
             return 0;
         }
 
@@ -85,9 +101,10 @@ internal sealed class WalletOutboxDrainer(
 
         if (publishedIds.Count > 0)
         {
-            await MarkPublishedAsync(publishedIds, cancellationToken);
+            await MarkPublishedAsync(connection, transaction, publishedIds, cancellationToken);
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return publishedIds.Count;
     }
 
@@ -108,12 +125,11 @@ internal sealed class WalletOutboxDrainer(
         }
     }
 
-    private async Task<List<DrainEntry>> ClaimBatchAsync(CancellationToken cancellationToken)
+    private async Task<List<DrainEntry>> ClaimBatchAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken cancellationToken)
     {
         var batch = new List<DrainEntry>(BatchSize);
 
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(ClaimSql, connection);
+        await using var command = new NpgsqlCommand(ClaimSql, connection, transaction);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
@@ -134,19 +150,35 @@ internal sealed class WalletOutboxDrainer(
         return batch;
     }
 
-    private async Task MarkPublishedAsync(IReadOnlyList<long> ids, CancellationToken cancellationToken)
+    private static async Task MarkPublishedAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, IReadOnlyList<long> ids, CancellationToken cancellationToken)
     {
-        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(MarkPublishedSql, connection);
+        await using var command = new NpgsqlCommand(MarkPublishedSql, connection, transaction);
         command.Parameters.AddWithValue("ids", ids.ToArray());
         await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private async Task RefreshGateIfDueAsync(int drained, CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        if (drained == 0 && now < _nextGateRefreshUtc)
+        {
+            return;
+        }
+
+        _nextGateRefreshUtc = now + GateRefreshInterval;
+
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(PendingCountSql, connection);
+        var pending = Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken) ?? 0L);
+        gate.Update(pending);
+        WalletMeters.RecordOutboxDepth((int)Math.Min(pending, int.MaxValue));
     }
 
     private static IWalletEvent? DeserializeEvent(string eventType, string payload) => eventType switch
     {
         nameof(FundsAdded) => JsonSerializer.Deserialize(payload, WalletStateJsonContext.Default.FundsAdded),
         nameof(FundsDeducted) => JsonSerializer.Deserialize(payload, WalletStateJsonContext.Default.FundsDeducted),
-        nameof(DeductionRejected) => JsonSerializer.Deserialize(payload, WalletStateJsonContext.Default.DeductionRejected),
+        nameof(OperationRejected) => JsonSerializer.Deserialize(payload, WalletStateJsonContext.Default.OperationRejected),
         _ => null,
     };
 

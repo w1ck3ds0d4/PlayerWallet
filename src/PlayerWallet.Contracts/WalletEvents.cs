@@ -6,7 +6,7 @@ namespace PlayerWallet.Contracts;
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "$type")]
 [JsonDerivedType(typeof(FundsAdded), nameof(FundsAdded))]
 [JsonDerivedType(typeof(FundsDeducted), nameof(FundsDeducted))]
-[JsonDerivedType(typeof(DeductionRejected), nameof(DeductionRejected))]
+[JsonDerivedType(typeof(OperationRejected), nameof(OperationRejected))]
 public interface IWalletEvent
 {
     Guid EventId { get; }
@@ -35,9 +35,10 @@ public sealed record FundsDeducted(
     [property: Id(4)] Money BalanceAfter,
     [property: Id(5)] DateTimeOffset OccurredAt) : IWalletEvent;
 
+/// <summary>v2: emitted only for state-dependent rejections (InsufficientFunds today; OutboxFull is transient and not persisted). Renamed from <c>DeductionRejected</c> because v1 also fired this for add-funds rejections, which the type name misrepresented.</summary>
 [GenerateSerializer]
 [Immutable]
-public sealed record DeductionRejected(
+public sealed record OperationRejected(
     [property: Id(0)] Guid EventId,
     [property: Id(1)] string PlayerId,
     [property: Id(2)] Guid OperationId,

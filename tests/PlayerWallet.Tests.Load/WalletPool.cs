@@ -39,10 +39,10 @@ internal static class WalletPool
         Console.WriteLine($"[seed] Done in {sw.Elapsed.TotalSeconds:F1}s.");
     }
 
-    /// <summary>Hits every wallet with GET /balance before measurement so grain activation, Npgsql pool warmup, JIT, and OS cache costs do not show up as a latency tail in the first ~10 s of the bench.</summary>
+    /// <summary>v2: pre-warm with a no-op mutation pair (add 0.01 + deduct 0.01) instead of GET /balance so the first-mutation Postgres SELECT + JSONB write cost amortises into warm-up rather than showing up as the add-funds latency tail in the first ~10s of the bench. GET /balance only warmed the read path.</summary>
     public static async Task PreWarmAsync(HttpClient client, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[prewarm] Warming {Ids.Length + 1} grains via GET /balance...");
+        Console.WriteLine($"[prewarm] Warming {Ids.Length + 1} grains with no-op add+deduct mutation pairs...");
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
         var allIds = Ids.Append(HotWalletId).ToArray();
@@ -53,12 +53,7 @@ internal static class WalletPool
             await semaphore.WaitAsync(cancellationToken);
             try
             {
-                using var response = await client.GetAsync(
-                    $"/wallets/{playerId}/balance",
-                    HttpCompletionOption.ResponseHeadersRead,
-                    cancellationToken);
-                await response.Content.CopyToAsync(System.IO.Stream.Null, cancellationToken);
-                response.EnsureSuccessStatusCode();
+                await PreWarmOneAsync(client, playerId, cancellationToken);
             }
             finally
             {
@@ -68,6 +63,23 @@ internal static class WalletPool
 
         await Task.WhenAll(tasks);
         Console.WriteLine($"[prewarm] Done in {sw.Elapsed.TotalSeconds:F1}s.");
+    }
+
+    private static async Task PreWarmOneAsync(HttpClient client, string playerId, CancellationToken cancellationToken)
+    {
+        var warmupAmount = new { amount = 0.01m, currency = LoadConfig.Currency };
+
+        var addPayload = new { operationId = Guid.NewGuid(), amount = warmupAmount };
+        using (var addResponse = await client.PostAsJsonAsync($"/wallets/{playerId}/add-funds", addPayload, cancellationToken))
+        {
+            await addResponse.Content.CopyToAsync(System.IO.Stream.Null, cancellationToken);
+            addResponse.EnsureSuccessStatusCode();
+        }
+
+        var deductPayload = new { operationId = Guid.NewGuid(), amount = warmupAmount };
+        using var deductResponse = await client.PostAsJsonAsync($"/wallets/{playerId}/deduct-funds", deductPayload, cancellationToken);
+        await deductResponse.Content.CopyToAsync(System.IO.Stream.Null, cancellationToken);
+        deductResponse.EnsureSuccessStatusCode();
     }
 
     private static async Task SeedOneAsync(HttpClient client, string playerId, CancellationToken cancellationToken)

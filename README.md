@@ -1,4 +1,4 @@
-# PlayerWallet
+# PlayerWallet v2
 
 Per-player wallet microservice built on .NET Aspire, Microsoft Orleans, and Kafka.
 Three HTTP operations: credit funds, debit funds, read balance. Per-grain
@@ -6,6 +6,17 @@ turn-based concurrency gives strict per-player serialization. Every mutation
 commits balance + outbox event in a single PostgreSQL transaction; a
 background `WalletOutboxDrainer` reads `wallet_outbox` and publishes to
 Kafka off the request path.
+
+> **v2 release notes.** This is a fork of the original PlayerWallet that
+> applies the improvements identified in the v1 post-mortem study guide:
+> horizontal-scale-safe outbox drainer (`FOR UPDATE SKIP LOCKED`), real LRU
+> idempotency cache, outbox back-pressure gate (HTTP 503), endpoint
+> pre-grain validation, `synchronous_commit=on` by default, currency column
+> tightened to `VARCHAR(3)` with a CHECK constraint, and a breaking event
+> rename (`DeductionRejected` -> `OperationRejected`). Full delta:
+> [`CHANGELOG_V2.md`](CHANGELOG_V2.md). The v1 ENGINEERING_JOURNAL.md is
+> preserved verbatim as a historical record of how the original came
+> together.
 
 ## Architecture
 

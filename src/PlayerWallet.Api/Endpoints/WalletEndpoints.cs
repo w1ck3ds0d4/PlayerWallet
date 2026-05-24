@@ -11,7 +11,7 @@ public static class WalletEndpoints
 {
     public static IEndpointRouteBuilder MapWalletEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/wallets/{playerId}").WithTags("Wallet");
+        var group = app.MapGroup("/wallets/{playerId:minlength(1):maxlength(64)}").WithTags("Wallet");
 
         const string addFundsDescription = """
             Idempotent on `operationId`. Sets the wallet currency on first call.
@@ -40,8 +40,8 @@ public static class WalletEndpoints
         const string deductFundsDescription = """
             Idempotent on `operationId`. Returns 402 Payment Required if the
             wallet has insufficient funds, 400 on validation problems, 503 if
-            the event outbox is at capacity. Even rejected deductions emit a
-            `DeductionRejected` event for audit.
+            the event outbox is at capacity. State-dependent rejections
+            (insufficient funds) emit an `OperationRejected` event for audit.
 
             **Example response (402 Insufficient Funds)**
 
@@ -141,6 +141,20 @@ public static class WalletEndpoints
                     title: "Invalid request",
                     detail: "operationId is required and must be a non-empty Guid.",
                     statusCode: StatusCodes.Status400BadRequest);
+            }
+
+            // v2: pre-grain amount validation. Bad input never opens a Postgres tx, never writes an outbox row, never activates the grain.
+            if (!request.Amount.IsPositive)
+            {
+                WalletMeters.Requests.Add(1, endpointTag, new KeyValuePair<string, object?>("result", "rejected"));
+                return TypedResults.Problem(
+                    title: "Invalid amount",
+                    detail: "amount must be greater than zero.",
+                    statusCode: StatusCodes.Status400BadRequest,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["rejectionCode"] = RejectionCode.InvalidAmount.ToString(),
+                    });
             }
 
             OperationResult result;

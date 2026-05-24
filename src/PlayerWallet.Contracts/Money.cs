@@ -25,13 +25,13 @@ public readonly partial record struct Money
     public Money Add(Money other)
     {
         EnsureSameCurrency(other);
-        return new Money(Amount + other.Amount, Currency);
+        return new Money(checked(Amount + other.Amount), Currency);
     }
 
     public Money Subtract(Money other)
     {
         EnsureSameCurrency(other);
-        return new Money(Amount - other.Amount, Currency);
+        return new Money(checked(Amount - other.Amount), Currency);
     }
 
     [JsonIgnore]

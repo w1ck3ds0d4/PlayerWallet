@@ -16,5 +16,5 @@ namespace PlayerWallet.Api.Telemetry;
 [JsonSerializable(typeof(IWalletEvent))]
 [JsonSerializable(typeof(FundsAdded))]
 [JsonSerializable(typeof(FundsDeducted))]
-[JsonSerializable(typeof(DeductionRejected))]
+[JsonSerializable(typeof(OperationRejected))]
 internal sealed partial class WalletJsonContext : JsonSerializerContext;

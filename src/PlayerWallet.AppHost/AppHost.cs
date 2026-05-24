@@ -1,7 +1,7 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// PostgreSQL backs Orleans grain state via the AdoNet provider. Server args tune for sustained write load.
-// synchronous_commit=off is a dev/bench trade-off (commits land in the OS page cache, not fsync'd) and production flips it back ON once a synchronous standby replica owns the durability story.
+// PostgreSQL backs the wallet state store and outbox. v2 runs synchronous_commit=on by default so headline numbers reflect durable single-node performance. Set PLAYERWALLET_PG_SYNC=off to opt back into the v1 dev-bench trade-off.
+var pgSyncCommit = Environment.GetEnvironmentVariable("PLAYERWALLET_PG_SYNC") == "off" ? "off" : "on";
 var postgres = builder.AddPostgres("postgres")
     .WithDataVolume(isReadOnly: false)
     .WithLifetime(ContainerLifetime.Persistent)
@@ -11,7 +11,7 @@ var postgres = builder.AddPostgres("postgres")
               "-c", "effective_cache_size=1GB",
               "-c", "checkpoint_timeout=15min",
               "-c", "max_wal_size=2GB",
-              "-c", "synchronous_commit=off",
+              "-c", $"synchronous_commit={pgSyncCommit}",
               "-c", "wal_writer_delay=10ms");
 
 var orleansDb = postgres.AddDatabase("orleans");

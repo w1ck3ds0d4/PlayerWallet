@@ -31,11 +31,20 @@ public sealed class InMemoryWalletStateStore(IWalletEventPublisher publisher) : 
     }
 
     /// <summary>Deep-copies the state on the boundary; <see cref="WalletState"/> has mutable collections and two grains for the same player must not share them.</summary>
-    private static WalletState Clone(WalletState source) => new()
+    private static WalletState Clone(WalletState source)
     {
-        Balance = source.Balance,
-        Initialized = source.Initialized,
-        RecentOperations = new Dictionary<Guid, OperationResult>(source.RecentOperations),
-        OperationOrder = new Queue<Guid>(source.OperationOrder),
-    };
+        var clone = new WalletState
+        {
+            Balance = source.Balance,
+            Initialized = source.Initialized,
+        };
+        foreach (var id in source.OperationOrder)
+        {
+            if (source.RecentOperations.TryGetValue(id, out var result))
+            {
+                clone.TrackOperation(id, result);
+            }
+        }
+        return clone;
+    }
 }

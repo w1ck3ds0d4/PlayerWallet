@@ -38,6 +38,10 @@ builder.Services.ConfigureOpenTelemetryTracerProvider(tracing =>
 builder.Services.AddProblemDetails();
 builder.Services.AddSingleton(TimeProvider.System);
 
+// Outbox back-pressure gate: drainer publishes pending-row counts here; the wallet grain reads it before every mutation and returns 503 OutboxFull when the cap is breached. Configurable via Wallet:OutboxCap.
+var outboxCap = builder.Configuration.GetValue<int?>("Wallet:OutboxCap") ?? OutboxBackpressureGate.DefaultCap;
+builder.Services.AddSingleton(new OutboxBackpressureGate(outboxCap));
+
 // When Aspire injects ConnectionStrings:kafka, register the real producer
 // (which also implements IHealthCheck). Otherwise fall back to the NoOp
 // publisher so component tests and pre-AppHost runs still work.
@@ -79,9 +83,6 @@ else
 builder.UseOrleans(silo =>
 {
     silo.UseLocalhostClustering();
-
-    // Memory storage stays registered for incidental Orleans-managed state; the wallet grain now goes through IWalletStateStore.
-    silo.AddMemoryGrainStorage("WalletStorage");
 });
 
 var healthChecks = builder.Services.AddHealthChecks()

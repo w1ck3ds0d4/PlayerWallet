@@ -10,10 +10,12 @@ namespace PlayerWallet.Grains;
 /// </summary>
 public sealed class WalletGrain(
     IWalletStateStore stateStore,
-    TimeProvider timeProvider) : Grain, IWalletGrain
+    TimeProvider timeProvider,
+    OutboxBackpressureGate backpressureGate) : Grain, IWalletGrain
 {
     private readonly IWalletStateStore _stateStore = stateStore;
     private readonly TimeProvider _timeProvider = timeProvider;
+    private readonly OutboxBackpressureGate _backpressureGate = backpressureGate;
 
     private WalletState _state = new();
 
@@ -41,6 +43,7 @@ public sealed class WalletGrain(
 
         if (_state.RecentOperations.TryGetValue(operationId, out var cached))
         {
+            _state.TouchOperation(operationId);
             WalletMeters.IdempotencyHits.Add(1, endpointTag);
             return cached;
         }
@@ -48,14 +51,24 @@ public sealed class WalletGrain(
         var now = _timeProvider.GetUtcNow();
         var playerId = this.GetPrimaryKeyString();
 
+        if (_backpressureGate.ShouldRejectNewWrites)
+        {
+            return OperationResult.Reject(
+                CurrentBalance(amount.Currency),
+                RejectionCode.OutboxFull,
+                $"Outbox at capacity ({_backpressureGate.PendingCount}/{_backpressureGate.Cap} unpublished); retry shortly.",
+                now);
+        }
+
         if (!amount.IsPositive)
         {
+            // v2: pure input rejection. Cached in memory for idempotency but NOT persisted; cheap to recompute on retry and avoids one Postgres tx per garbage request.
             var rejection = OperationResult.Reject(
                 CurrentBalance(amount.Currency),
                 RejectionCode.InvalidAmount,
                 "Amount must be greater than zero.",
                 now);
-            await RecordRejectionAsync(operationId, amount, rejection, playerId);
+            _state.TrackOperation(operationId, rejection);
             return rejection;
         }
 
@@ -68,7 +81,7 @@ public sealed class WalletGrain(
                     RejectionCode.InsufficientFunds,
                     "Wallet is empty; cannot deduct.",
                     now);
-                await RecordRejectionAsync(operationId, amount, rejection, playerId);
+                await RecordStatefulRejectionAsync(operationId, amount, rejection, playerId);
                 return rejection;
             }
 
@@ -78,12 +91,13 @@ public sealed class WalletGrain(
 
         if (!string.Equals(amount.Currency, _state.Balance.Currency, StringComparison.Ordinal))
         {
+            // v2: deterministic from current wallet currency + request; cache only, do not persist.
             var rejection = OperationResult.Reject(
                 _state.Balance,
                 RejectionCode.CurrencyMismatch,
                 $"Wallet operates in {_state.Balance.Currency}; request was {amount.Currency}.",
                 now);
-            await RecordRejectionAsync(operationId, amount, rejection, playerId);
+            _state.TrackOperation(operationId, rejection);
             return rejection;
         }
 
@@ -94,7 +108,7 @@ public sealed class WalletGrain(
                 RejectionCode.InsufficientFunds,
                 $"Insufficient funds. Requested {amount} from balance {_state.Balance}.",
                 now);
-            await RecordRejectionAsync(operationId, amount, rejection, playerId);
+            await RecordStatefulRejectionAsync(operationId, amount, rejection, playerId);
             return rejection;
         }
 
@@ -105,7 +119,7 @@ public sealed class WalletGrain(
         _state.Balance = newBalance;
 
         var result = OperationResult.Success(newBalance, now);
-        TrackOperation(operationId, result);
+        _state.TrackOperation(operationId, result);
 
         IWalletEvent walletEvent = isAdd
             ? new FundsAdded(Guid.NewGuid(), playerId, operationId, amount, newBalance, now)
@@ -120,11 +134,11 @@ public sealed class WalletGrain(
         return result;
     }
 
-    private async Task RecordRejectionAsync(Guid operationId, Money requestedAmount, OperationResult rejection, string playerId)
+    private async Task RecordStatefulRejectionAsync(Guid operationId, Money requestedAmount, OperationResult rejection, string playerId)
     {
-        TrackOperation(operationId, rejection);
+        _state.TrackOperation(operationId, rejection);
 
-        var rejectedEvent = new DeductionRejected(
+        var rejectedEvent = new OperationRejected(
             Guid.NewGuid(),
             playerId,
             operationId,
@@ -134,18 +148,6 @@ public sealed class WalletGrain(
             rejection.OccurredAt);
 
         await _stateStore.SaveAsync(playerId, _state, rejectedEvent, CancellationToken.None);
-    }
-
-    private void TrackOperation(Guid operationId, OperationResult result)
-    {
-        _state.RecentOperations[operationId] = result;
-        _state.OperationOrder.Enqueue(operationId);
-
-        while (_state.OperationOrder.Count > WalletState.IdempotencyCacheCap)
-        {
-            var evicted = _state.OperationOrder.Dequeue();
-            _state.RecentOperations.Remove(evicted);
-        }
     }
 
     private Money CurrentBalance(string fallbackCurrency) =>

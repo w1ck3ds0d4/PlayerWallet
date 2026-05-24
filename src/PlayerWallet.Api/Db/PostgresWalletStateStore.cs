@@ -49,7 +49,7 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
         }
 
         var balanceAmount = reader.GetDecimal(0);
-        var balanceCurrency = reader.GetString(1).TrimEnd();
+        var balanceCurrency = reader.GetString(1);
         var recentJson = reader.GetString(2);
         var orderJson = reader.GetString(3);
 
@@ -58,12 +58,21 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
         var orderList = JsonSerializer.Deserialize(orderJson, WalletStateJsonContext.Default.ListGuid)
             ?? new List<Guid>();
 
+        var orderLinked = new LinkedList<Guid>();
+        var index = new Dictionary<Guid, LinkedListNode<Guid>>(orderList.Count);
+        foreach (var id in orderList)
+        {
+            var node = orderLinked.AddLast(id);
+            index[id] = node;
+        }
+
         return new WalletState
         {
             Balance = new Money(balanceAmount, balanceCurrency),
             Initialized = true,
             RecentOperations = recent,
-            OperationOrder = new Queue<Guid>(orderList),
+            OperationOrder = orderLinked,
+            OperationOrderIndex = index,
         };
     }
 
@@ -82,7 +91,7 @@ internal sealed class PostgresWalletStateStore(NpgsqlDataSource dataSource) : IW
             {
                 stateCmd.Parameters.Add(new NpgsqlParameter("player_id", NpgsqlDbType.Text) { Value = playerId });
                 stateCmd.Parameters.Add(new NpgsqlParameter("balance_amount", NpgsqlDbType.Numeric) { Value = state.Balance.Amount });
-                stateCmd.Parameters.Add(new NpgsqlParameter("balance_currency", NpgsqlDbType.Char) { Value = state.Balance.Currency });
+                stateCmd.Parameters.Add(new NpgsqlParameter("balance_currency", NpgsqlDbType.Varchar) { Value = state.Balance.Currency });
                 stateCmd.Parameters.Add(new NpgsqlParameter("recent", NpgsqlDbType.Jsonb) { Value = recentJson });
                 stateCmd.Parameters.Add(new NpgsqlParameter("order", NpgsqlDbType.Jsonb) { Value = orderJson });
                 await stateCmd.ExecuteNonQueryAsync(cancellationToken);

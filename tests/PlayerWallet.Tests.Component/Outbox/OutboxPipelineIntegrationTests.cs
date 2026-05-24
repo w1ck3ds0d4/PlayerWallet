@@ -58,7 +58,7 @@ public sealed class OutboxPipelineIntegrationTests : IAsyncLifetime
 
         await EnsureTopicAsync(_kafka.GetBootstrapAddress());
 
-        _drainer = new WalletOutboxDrainer(_dataSource, _publisher, NullLogger<WalletOutboxDrainer>.Instance);
+        _drainer = new WalletOutboxDrainer(_dataSource, _publisher, new OutboxBackpressureGate(), NullLogger<WalletOutboxDrainer>.Instance);
         _drainerStop = new CancellationTokenSource();
         await _drainer.StartAsync(_drainerStop.Token);
     }
@@ -99,12 +99,8 @@ public sealed class OutboxPipelineIntegrationTests : IAsyncLifetime
             {
                 Balance = balance,
                 Initialized = true,
-                RecentOperations = new Dictionary<Guid, OperationResult>
-                {
-                    [operationId] = OperationResult.Success(balance, now),
-                },
-                OperationOrder = new Queue<Guid>(new[] { operationId }),
             };
+            state.TrackOperation(operationId, OperationResult.Success(balance, now));
 
             await store.SaveAsync("integration-player", state, walletEvent);
             produced.Add(walletEvent);

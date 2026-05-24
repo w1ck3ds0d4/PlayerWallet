@@ -39,12 +39,12 @@ public sealed class WalletGrainTestCluster : IAsyncLifetime
     {
         public void Configure(ISiloBuilder siloBuilder)
         {
-            siloBuilder.AddMemoryGrainStorage("WalletStorage");
             siloBuilder.ConfigureServices(services =>
             {
                 services.AddSingleton<TimeProvider>(s_timeProvider);
                 services.AddSingleton<IWalletEventPublisher>(s_publisher);
                 services.AddSingleton<IWalletStateStore, InMemoryWalletStateStore>();
+                services.AddSingleton(new OutboxBackpressureGate());
             });
         }
     }

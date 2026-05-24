@@ -13,5 +13,5 @@ namespace PlayerWallet.Grains;
 [JsonSerializable(typeof(IWalletEvent))]
 [JsonSerializable(typeof(FundsAdded))]
 [JsonSerializable(typeof(FundsDeducted))]
-[JsonSerializable(typeof(DeductionRejected))]
+[JsonSerializable(typeof(OperationRejected))]
 public sealed partial class WalletStateJsonContext : JsonSerializerContext;
