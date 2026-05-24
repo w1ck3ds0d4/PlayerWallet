@@ -76,3 +76,37 @@ CREATE INDEX IF NOT EXISTS idx_wallet_outbox_unpublished
 -- accepts in exchange for the throughput. Flip back to LOGGED if your
 -- compliance posture requires per-event durability.
 ALTER TABLE wallet_outbox SET UNLOGGED;
+
+-- v2.3: per-table autovacuum + fillfactor tuning. Root cause of the recurring
+-- "one bench duration is much slower than its siblings" anomaly was Postgres
+-- autovacuum firing mid-bench on the wallet_outbox table. Every drainer
+-- UPDATE of published_at creates a dead tuple (the partial index on
+-- WHERE published_at IS NULL prevents HOT updates), so after ~50k mutations
+-- autovacuum's 20% dead-tuple threshold is crossed and it starts a vacuum
+-- run that contends for I/O with the in-flight bench writes.
+--
+-- Fix: keep autovacuum on (dead-tuple cleanup IS needed for an append+update
+-- workload like the outbox), but raise the dead-tuple threshold (20% -> 60%)
+-- so it fires less often, AND cap its I/O cost (cost_limit 200 vs 200 default
+-- and cost_delay 20ms vs 2ms default) so when it does fire it doesn't slam
+-- the disk. fillfactor=70 leaves ~30% page space for HOT-updates where the
+-- partial index doesn't block them.
+ALTER TABLE wallet_outbox SET (
+    autovacuum_vacuum_scale_factor    = 0.6,
+    autovacuum_analyze_scale_factor   = 0.6,
+    autovacuum_vacuum_cost_delay      = 20,
+    autovacuum_vacuum_cost_limit      = 200,
+    fillfactor                        = 70
+);
+
+ALTER TABLE wallet_state SET (
+    autovacuum_vacuum_scale_factor    = 0.5,
+    autovacuum_analyze_scale_factor   = 0.5,
+    autovacuum_vacuum_cost_delay      = 20,
+    fillfactor                        = 80
+);
+
+-- One-shot analyze after CREATE so the planner has stats for the optimiser
+-- even on a fresh volume before the first INSERT.
+ANALYZE wallet_outbox;
+ANALYZE wallet_state;

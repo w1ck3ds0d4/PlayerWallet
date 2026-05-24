@@ -131,6 +131,22 @@ if (app.Environment.IsDevelopment())
 
 app.MapWalletEndpoints();
 
+// v2.3 admin endpoint: explicit reset of wallet_outbox between bench sessions so accumulated rows + autovacuum churn from prior runs don't contaminate the next bench. Wired only when Postgres is configured (no-op in test/InMemory mode). Dev-only by design; if a future deployment exposes this it needs authn/authz.
+if (usingPostgres && app.Environment.IsDevelopment())
+{
+    app.MapPost("/admin/reset-outbox", async (NpgsqlDataSource dataSource, ILogger<Program> logger, CancellationToken ct) =>
+    {
+        await using var connection = await dataSource.OpenConnectionAsync(ct);
+        await using var command = new NpgsqlCommand("TRUNCATE TABLE wallet_outbox RESTART IDENTITY; VACUUM ANALYZE wallet_outbox;", connection);
+        command.CommandTimeout = 30;
+        await command.ExecuteNonQueryAsync(ct);
+        logger.LogInformation("wallet_outbox truncated + vacuumed by /admin/reset-outbox.");
+        return Results.Ok(new { reset = "wallet_outbox", at = DateTimeOffset.UtcNow });
+    })
+    .WithTags("Admin")
+    .WithSummary("Dev-only: TRUNCATE + VACUUM wallet_outbox for a clean bench slate.");
+}
+
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") });
 

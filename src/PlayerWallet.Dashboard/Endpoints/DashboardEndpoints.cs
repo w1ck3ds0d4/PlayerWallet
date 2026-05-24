@@ -108,6 +108,43 @@ public static class DashboardEndpoints
             return run is null ? Results.NotFound() : Results.Ok(run);
         });
 
+        // Proxies the dev-only /admin/reset-outbox endpoint on each configured project so a single
+        // dashboard click can wipe wallet_outbox on both v1 and v2 before a clean-slate bench.
+        // Best-effort: v1 doesn't ship the endpoint so it returns a not-supported note in the
+        // response. The dashboard surfaces this per-project so the operator knows what cleared.
+        group.MapPost("/reset-outboxes", async (IHttpClientFactory clientFactory, IOptions<DashboardOptions> options, CancellationToken ct) =>
+        {
+            var results = new List<object>();
+            foreach (var project in options.Value.Projects)
+            {
+                var client = clientFactory.CreateClient(project.Name);
+                client.BaseAddress = new Uri(project.Url);
+                client.Timeout = TimeSpan.FromSeconds(30);
+                try
+                {
+                    using var resp = await client.PostAsync("/admin/reset-outbox", content: null, ct);
+                    results.Add(new
+                    {
+                        project = project.Name,
+                        ok = resp.IsSuccessStatusCode,
+                        statusCode = (int)resp.StatusCode,
+                        note = resp.IsSuccessStatusCode ? "outbox truncated + vacuumed" : "endpoint not available (only v2 exposes /admin/reset-outbox in Development)",
+                    });
+                }
+                catch (Exception ex)
+                {
+                    results.Add(new
+                    {
+                        project = project.Name,
+                        ok = false,
+                        statusCode = 0,
+                        note = ex.Message,
+                    });
+                }
+            }
+            return Results.Ok(results);
+        });
+
         return app;
     }
 }

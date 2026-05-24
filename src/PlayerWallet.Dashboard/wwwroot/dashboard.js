@@ -282,6 +282,24 @@ document.addEventListener('click', (e) => {
 
 $('#run').addEventListener('click', startRun);
 
+$('#reset-outboxes').addEventListener('click', async () => {
+  const btn = $('#reset-outboxes');
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = 'Resetting…';
+  try {
+    const resp = await fetch('/api/reset-outboxes', { method: 'POST' });
+    const results = await resp.json();
+    const summary = results.map(r => `${r.project}: ${r.ok ? 'cleared' : (r.statusCode || 'err') + ' (' + r.note + ')'}`).join(' | ');
+    setRunStatus(`Reset outboxes — ${summary}`, results.every(r => r.ok) ? 'done' : 'progress');
+  } catch (e) {
+    setRunStatus(`Reset failed: ${e.message}`, 'fail');
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
+  }
+});
+
 loadProjects().then(() => {
   refreshHistory();
   setInterval(refreshHealth, 5000);
