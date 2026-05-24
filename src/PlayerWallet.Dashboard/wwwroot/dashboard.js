@@ -326,42 +326,32 @@ function renderComparison(runs) {
 }
 
 function deltaCell(v1, v2) {
-  if (!Number.isFinite(v1) || v1 <= 0) {
+  if (!Number.isFinite(v1) || v1 <= 0 || !Number.isFinite(v2) || v2 <= 0) {
     return '<td class="delta-neutral">-</td>';
   }
-  const pct = ((v2 - v1) / v1) * 100;
-  const abs = Math.abs(pct);
 
-  // ±2% threshold: smaller than that is measurement noise.
-  // Above 50% reduction (or 100% increase), percentage loses meaning: -99.95% just says
-  // 'a lot smaller' but doesn't convey 'v2 is 1974× faster than v1'. Switch to multiplier
-  // notation for dramatic deltas so the magnitude is unmistakable in the interview screen.
+  // Always express the delta as a multiplier so the format stays consistent across all
+  // magnitudes: tiny differences read as e.g. '1.07× slower', huge ones as '1,974× faster'.
+  // Avoids the percentage representation's saturation at -100% which hides the v1-vs-v2
+  // story for the hot-wallet / dramatic scenarios.
+  const ratio = v2 / v1;
   let cls;
   let arrow;
   let label;
 
-  if (abs < 2) {
+  if (ratio >= 0.98 && ratio <= 1.02) {
+    // Within ±2% noise band; still show the ratio so the reader sees direction at a glance.
     cls = 'delta-neutral';
     arrow = '·';
-    label = `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
-  } else if (pct < 0) {
+    label = `${formatRatio(ratio)}× (tied)`;
+  } else if (ratio < 1) {
     cls = 'delta-better';
     arrow = '▼';
-    if (abs >= 50 && v2 > 0) {
-      const ratio = v1 / v2;
-      label = `${formatRatio(ratio)}× faster`;
-    } else {
-      label = `${pct.toFixed(0)}%`;
-    }
+    label = `${formatRatio(1 / ratio)}× faster`;
   } else {
     cls = 'delta-worse';
     arrow = '▲';
-    if (abs >= 100 && v1 > 0) {
-      const ratio = v2 / v1;
-      label = `${formatRatio(ratio)}× slower`;
-    } else {
-      label = `+${pct.toFixed(0)}%`;
-    }
+    label = `${formatRatio(ratio)}× slower`;
   }
 
   return `<td class="${cls}">${arrow} ${label}</td>`;
