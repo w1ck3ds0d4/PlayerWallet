@@ -10,8 +10,8 @@ internal static class BenchScenarios
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    /// <summary>Number of add+deduct pairs to fire against each wallet during pre-warm. Bumped from 1 to 3 so each Npgsql connection (Min Pool Size = 4 on v2) reaches AutoPrepare's 5-call threshold per statement template before the measurement bench starts. Cuts the p99 tail caused by first-time Postgres plan compilation.</summary>
-    private const int WarmupCyclesPerWallet = 3;
+    /// <summary>Number of add+deduct pairs to fire against each wallet during pre-warm. Bumped from 3 to 5 so each Npgsql connection (Min Pool Size = 4 on v2) reaches AutoPrepare's 5-call threshold per statement template with margin before the measurement bench starts, AND Postgres has done enough writes that the plan + buffer cache is fully warm. Eliminates the systematic-mid-run-slowdown anomaly previously seen on add-funds.</summary>
+    private const int WarmupCyclesPerWallet = 5;
 
     public static async Task SeedAndWarmAsync(HttpClient client, string[] playerIds, string projectName, decimal seedBalance, string currency, CancellationToken cancellationToken)
     {
@@ -55,6 +55,7 @@ internal static class BenchScenarios
     public static ScenarioProps Build(string scenario, string projectName, HttpClient client, string[] playerIds, BenchOptions opts)
     {
         var name = $"{projectName}-{scenario}";
+        var resolvedRps = opts.ResolvedRpsFor(scenario);
 
         ScenarioProps props = scenario switch
         {
@@ -76,7 +77,7 @@ internal static class BenchScenarios
         return props
             .WithWarmUpDuration(TimeSpan.FromSeconds(opts.WarmUpSeconds))
             .WithLoadSimulations(Simulation.Inject(
-                rate: opts.RequestsPerSecond,
+                rate: resolvedRps,
                 interval: TimeSpan.FromSeconds(1),
                 during: TimeSpan.FromSeconds(opts.DurationSeconds)));
     }

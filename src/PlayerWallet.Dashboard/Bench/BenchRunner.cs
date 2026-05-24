@@ -96,7 +96,7 @@ public sealed class BenchRunner
             Scenario = scenario,
             WarmUpSeconds = bench.WarmUpSeconds,
             DurationSeconds = bench.DurationSeconds,
-            RequestsPerSecond = bench.RequestsPerSecond,
+            RequestsPerSecond = bench.ResolvedRpsFor(scenario),
             FolderPath = folderPath,
         };
 
@@ -120,7 +120,7 @@ public sealed class BenchRunner
             {
                 var client = _clientFactory.CreateClient(project.Name);
                 client.BaseAddress = new Uri(project.Url);
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromSeconds(bench.HttpTimeoutSeconds);
 
                 var ids = BenchScenarios.BuildPlayerIds(project.Name, bench.WalletPoolSize);
                 _logger.LogInformation("Seeding {Count} wallets (+1 hot) for project {Project} at {Url}.", ids.Length, project.Name, project.Url);
@@ -129,8 +129,9 @@ public sealed class BenchRunner
                 perProject.Add((project, client, ids));
             }
 
+            var resolvedRps = bench.ResolvedRpsFor(scenario);
             run.Status = BenchStatus.Warming;
-            run.StatusDetail = $"NBomber warmup ({bench.WarmUpSeconds}s), then {bench.DurationSeconds}s at {bench.RequestsPerSecond} rps per project.";
+            run.StatusDetail = $"NBomber warmup ({bench.WarmUpSeconds}s), then {bench.DurationSeconds}s at {resolvedRps} rps per project (HTTP timeout {bench.HttpTimeoutSeconds}s).";
 
             var scenarios = perProject
                 .Select(p => BenchScenarios.Build(scenario, p.Project.Name, p.Client, p.Ids, bench))

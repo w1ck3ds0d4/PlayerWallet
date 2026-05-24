@@ -20,8 +20,11 @@ async function loadProjects() {
   state.projects = projects;
   state.config = config;
 
+  const overrideText = config.scenarioRpsOverrides && Object.keys(config.scenarioRpsOverrides).length
+    ? ' (overrides: ' + Object.entries(config.scenarioRpsOverrides).map(([k, v]) => `${k}=${v}rps`).join(', ') + ')'
+    : '';
   $('#config-summary').textContent =
-    `${projects.length} projects | ${config.requestsPerSecond} rps per project ${config.warmUpSeconds}s warmup ${config.durationSeconds}s measure`;
+    `${projects.length} projects | ${config.requestsPerSecond} rps default${overrideText} | ${config.warmUpSeconds}s warmup ${config.durationSeconds}s measure | http timeout ${config.httpTimeoutSeconds}s`;
 
   // Surface the reports root so the user knows where on-disk run folders live.
   const reportsLabel = $('#reports-root');

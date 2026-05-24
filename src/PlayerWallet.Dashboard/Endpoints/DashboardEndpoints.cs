@@ -26,6 +26,8 @@ public static class DashboardEndpoints
                 options.Value.Bench.WalletPoolSize,
                 options.Value.Bench.SeedBalance,
                 options.Value.Bench.Currency,
+                options.Value.Bench.HttpTimeoutSeconds,
+                options.Value.Bench.ScenarioRpsOverrides,
                 ReportsRoot = runner.ReportsRoot,
             }));
 

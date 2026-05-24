@@ -10,6 +10,39 @@ release for consumers.
 The v1 ENGINEERING_JOURNAL.md is preserved verbatim as a historical record of
 how the original code came together. This document covers what changed.
 
+## v2.2: bench fidelity + drainer throughput pass
+
+After running the v1-vs-v2 bench across multiple durations and persisting
+the results, two systematic problems emerged. This pass investigates each
+and fixes them.
+
+### Problems observed (from `src/PlayerWallet.Dashboard/.../reports/`)
+
+| Symptom | Root cause | Fix |
+|---|---|---|
+| `hot-wallet` @ 60s+ shows 1000+ HTTP failures from BOTH v1 and v2 | NBomber HTTP timeout (30s default) firing because 200 rps to a single Orleans grain is past per-grain capacity. Queue grows ~100/sec; last request waits > 30s. | (a) Per-scenario RPS override (hot-wallet defaults to 50). (b) HTTP timeout raised 30s -> 60s so late requests can wait. |
+| `hot-wallet` @ 90s shows 7727/18000 v1 failures (43%) | Same root cause; v1's ~150 ms per-request grain capacity is even further below 200 rps. | Same fix; v1 still has the architectural bottleneck (no v2.1 perf changes) but the test now measures actual latency instead of NBomber timeout. |
+| `add-funds` @ 60s: v2 mean 17.6 ms but its own 30s/90s runs were 10.6/10.7 ms | Likely a Postgres plan-cache warm-up not fully done in time, OR a single drainer batch holding row locks at the wrong moment. p50 shifted (16.6 vs 7.3) so it was systematic for that run. | (a) Pre-warm cycles 3 -> 5 (more chances for AutoPrepare to warm + more Postgres buffer-cache hits before measurement). (b) Two parallel drainer workers so locks are released faster per row. |
+| Drainer ceiling at sustained hot-wallet load | Single drainer instance, batch 200, 25ms poll = ~8k evt/sec ceiling. | Drainer now runs N=2 worker tasks (FOR UPDATE SKIP LOCKED safety stays), batch bumped 200 -> 500, adaptive poll (5ms when last batch was full, 25ms when partial, 100ms when empty). |
+
+### v2.2 file-by-file changes
+
+| File | Change |
+|---|---|
+| [`BenchOptions.cs`](src/PlayerWallet.Dashboard/Bench/BenchOptions.cs) | New `HttpTimeoutSeconds` (default 60), new `ScenarioRpsOverrides` dict, new `ResolvedRpsFor(scenario)` helper. |
+| [`appsettings.json`](src/PlayerWallet.Dashboard/appsettings.json) | `HttpTimeoutSeconds: 60`, `ScenarioRpsOverrides: { "hot-wallet": 50 }`. |
+| [`BenchScenarios.cs`](src/PlayerWallet.Dashboard/Bench/BenchScenarios.cs) | `WarmupCyclesPerWallet` 3 -> 5. Scenario builder uses `opts.ResolvedRpsFor(scenario)` instead of the global rps. |
+| [`BenchRunner.cs`](src/PlayerWallet.Dashboard/Bench/BenchRunner.cs) | HttpClient.Timeout from `bench.HttpTimeoutSeconds`. `BenchRun.RequestsPerSecond` records the resolved per-scenario rate so persisted summaries are accurate. Status text shows the resolved rate + http timeout. |
+| [`WalletOutboxDrainer.cs`](src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs) | Two parallel worker tasks (worker 0 owns the gate refresh + outbox depth meter to avoid double work). Adaptive poll (5/25/100ms). Batch size 200 -> 500. |
+| [`DashboardEndpoints.cs`](src/PlayerWallet.Dashboard/Endpoints/DashboardEndpoints.cs) | `/api/config` now exposes `httpTimeoutSeconds` and `scenarioRpsOverrides`. |
+| [`dashboard.js`](src/PlayerWallet.Dashboard/wwwroot/dashboard.js) | Config summary line shows per-scenario overrides and the timeout. |
+
+### What v2.2 does NOT fix
+
+- The `add-funds` 60s anomaly was stochastic; the longer pre-warm + multi-worker drainer reduce the chance but can't eliminate it. If you see it again, open v2's Aspire dashboard and inspect the slowest trace in the window; the OTel spans + tags will tell you whether it was DB-side or app-side.
+- Bench environment hygiene: `wallet_outbox` grows across bench sessions and Postgres index bloat can cause drift. If you see consistent slow runs across all scenarios, restart v2's AppHost (volume gets recreated) or manually `VACUUM ANALYZE wallet_outbox` from a Postgres client.
+- v1's per-grain ceiling is unchanged. v1's hot-wallet capacity is roughly ~7 rps before queueing hurts you. The new `hot-wallet=50rps` default still pushes v1 past its limit, which is intentional — that's the point of the comparison.
+
 ## v2.1: hot-path performance pass
 
 After the first round of v1-vs-v2 bench comparisons via the dashboard,

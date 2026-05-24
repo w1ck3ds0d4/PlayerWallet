@@ -18,10 +18,16 @@ internal sealed class WalletOutboxDrainer(
     OutboxBackpressureGate gate,
     ILogger<WalletOutboxDrainer> logger) : BackgroundService
 {
+    // v2.2: bigger batch + multi-worker. Two worker loops poll wallet_outbox concurrently;
+    // FOR UPDATE SKIP LOCKED ensures they never claim the same row, so the workers truly
+    // parallelise. Adaptive poll interval: when the previous batch was full (probable backlog)
+    // we re-poll on the BusyInterval; when empty we back off to IdleInterval.
+    private static readonly TimeSpan BusyInterval = TimeSpan.FromMilliseconds(5);
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(25);
     private static readonly TimeSpan IdleInterval = TimeSpan.FromMilliseconds(100);
     private static readonly TimeSpan GateRefreshInterval = TimeSpan.FromSeconds(2);
-    private const int BatchSize = 200;
+    private const int BatchSize = 500;
+    private const int WorkerCount = 2;
 
     private static readonly string ClaimSql = $"""
         SELECT id, event_id, event_type, player_id, payload
@@ -47,18 +53,51 @@ internal sealed class WalletOutboxDrainer(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation(
-            "WalletOutboxDrainer started; poll {Poll}ms, idle {Idle}ms, batch {Batch}.",
+            "WalletOutboxDrainer started; workers {Workers}, batch {Batch}, busy {Busy}ms / poll {Poll}ms / idle {Idle}ms.",
+            WorkerCount,
+            BatchSize,
+            (int)BusyInterval.TotalMilliseconds,
             (int)PollInterval.TotalMilliseconds,
-            (int)IdleInterval.TotalMilliseconds,
-            BatchSize);
+            (int)IdleInterval.TotalMilliseconds);
 
+        var workers = Enumerable.Range(0, WorkerCount)
+            .Select(workerId => Task.Run(() => RunWorkerAsync(workerId, stoppingToken), stoppingToken))
+            .ToArray();
+
+        try
+        {
+            await Task.WhenAll(workers);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // expected on shutdown
+        }
+
+        logger.LogInformation("WalletOutboxDrainer stopped.");
+    }
+
+    private async Task RunWorkerAsync(int workerId, CancellationToken stoppingToken)
+    {
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var drained = await DrainBatchAsync(stoppingToken);
-                await RefreshGateIfDueAsync(drained, stoppingToken);
-                await Task.Delay(drained == 0 ? IdleInterval : PollInterval, stoppingToken);
+                // Worker 0 is the single owner of the gate refresh + outbox-depth meter, so we
+                // don't multiply COUNT(*) load by WorkerCount.
+                if (workerId == 0)
+                {
+                    await RefreshGateIfDueAsync(drained, stoppingToken);
+                }
+                // Adaptive cadence: BusyInterval when last batch was full (likely more pending),
+                // PollInterval when we drained anything but not a full batch, IdleInterval when empty.
+                var nextDelay = drained switch
+                {
+                    0 => IdleInterval,
+                    _ when drained >= BatchSize => BusyInterval,
+                    _ => PollInterval,
+                };
+                await Task.Delay(nextDelay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -66,13 +105,11 @@ internal sealed class WalletOutboxDrainer(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "WalletOutboxDrainer iteration failed; backing off.");
+                logger.LogError(ex, "WalletOutboxDrainer worker {WorkerId} iteration failed; backing off.", workerId);
                 try { await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken); }
                 catch (OperationCanceledException) { break; }
             }
         }
-
-        logger.LogInformation("WalletOutboxDrainer stopped.");
     }
 
     private async Task<int> DrainBatchAsync(CancellationToken cancellationToken)
