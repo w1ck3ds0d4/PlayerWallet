@@ -51,6 +51,33 @@
     <div id="db-stats-body"></div>
   </section>
 
+  <section class="comparison">
+    <h2>v1 vs v2 comparison</h2>
+    <div class="muted" style="margin-bottom:8px;font-size:12px;">Per-run side-by-side. Δ shown as % difference (v2 vs v1); <span style="color:var(--ok)">green = v2 faster</span>, <span style="color:var(--bad)">red = v2 slower</span>, neutral within ±5%. Solo-project runs are excluded.</div>
+    <div style="overflow-x:auto;">
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th rowspan="2">Time</th>
+            <th rowspan="2">Scenario</th>
+            <th rowspan="2">Dur</th>
+            <th rowspan="2">RPS</th>
+            <th colspan="3">Mean (ms)</th>
+            <th colspan="3">p95 (ms)</th>
+            <th colspan="3">p99 (ms)</th>
+            <th rowspan="2">v2 FAIL</th>
+          </tr>
+          <tr>
+            <th>v1</th><th>v2</th><th>Δ</th>
+            <th>v1</th><th>v2</th><th>Δ</th>
+            <th>v1</th><th>v2</th><th>Δ</th>
+          </tr>
+        </thead>
+        <tbody id="comparison-body"></tbody>
+      </table>
+    </div>
+  </section>
+
   <section class="history">
     <h2>Recent runs</h2>
     <div class="muted" id="reports-root" style="margin-bottom: 8px;"></div>

@@ -232,8 +232,58 @@ function renderLatestResult(run) {
   container.appendChild(grid);
 }
 
+function renderComparison(runs) {
+  const tbody = $('#comparison-body');
+  tbody.innerHTML = '';
+
+  const comparable = runs
+    .filter(r => r.status === 'Completed' && r.outcomes.length >= 2)
+    .filter(r => r.outcomes.some(o => o.project === 'v1') && r.outcomes.some(o => o.project === 'v2'));
+
+  if (comparable.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="14" class="muted" style="text-align:center;padding:24px;">No comparison runs yet. Run a benchmark with both v1 and v2 checked to populate this table.</td></tr>';
+    return;
+  }
+
+  for (const r of comparable) {
+    const v1 = r.outcomes.find(o => o.project === 'v1');
+    const v2 = r.outcomes.find(o => o.project === 'v2');
+    const dt = new Date(r.startedAt).toLocaleTimeString();
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${dt}</td>
+      <td>${r.scenario}</td>
+      <td>${r.durationSeconds}s</td>
+      <td>${r.requestsPerSecond}</td>
+      <td>${v1.meanMs.toFixed(2)}</td>
+      <td>${v2.meanMs.toFixed(2)}</td>
+      ${deltaCell(v1.meanMs, v2.meanMs)}
+      <td>${v1.p95Ms.toFixed(2)}</td>
+      <td>${v2.p95Ms.toFixed(2)}</td>
+      ${deltaCell(v1.p95Ms, v2.p95Ms)}
+      <td>${v1.p99Ms.toFixed(2)}</td>
+      <td>${v2.p99Ms.toFixed(2)}</td>
+      ${deltaCell(v1.p99Ms, v2.p99Ms)}
+      <td style="color:${v2.failCount > 0 ? 'var(--bad)' : 'var(--muted)'}">${v2.failCount.toLocaleString()}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function deltaCell(v1, v2) {
+  if (!Number.isFinite(v1) || v1 <= 0) {
+    return '<td class="delta-neutral">-</td>';
+  }
+  const pct = ((v2 - v1) / v1) * 100;
+  const sign = pct > 0 ? '+' : '';
+  const cls = pct < -5 ? 'delta-better' : pct > 5 ? 'delta-worse' : 'delta-neutral';
+  return `<td class="${cls}">${sign}${pct.toFixed(0)}%</td>`;
+}
+
 async function refreshHistory() {
   const runs = await fetch('/api/bench').then(r => r.json());
+  renderComparison(runs);
   const tbody = $('#history-body');
   tbody.innerHTML = '';
   for (const r of runs) {

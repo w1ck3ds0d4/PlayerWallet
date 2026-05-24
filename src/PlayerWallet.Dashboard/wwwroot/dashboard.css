@@ -84,3 +84,12 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
 th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
 tbody tr:hover { background: rgba(56,189,248,0.05); }
+
+.comparison-table th { text-align: center; }
+.comparison-table td { font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; text-align: right; }
+.comparison-table td:nth-child(1),
+.comparison-table td:nth-child(2) { text-align: left; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+.comparison-table thead th[colspan="3"] { background: rgba(56,189,248,0.08); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+.comparison-table .delta-better { color: var(--ok); font-weight: 600; }
+.comparison-table .delta-worse  { color: var(--bad); font-weight: 600; }
+.comparison-table .delta-neutral { color: var(--muted); }
