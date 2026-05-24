@@ -85,7 +85,11 @@
         "DOTNET_LAUNCH_PROFILE": "http",
         "WALLET_API_HOST_PORT": "5000",
         "WALLET_KAFKA_HOST_PORT": "19092",
-        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true"
+        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true",
+        "ASPNETCORE_URLS": "https://localhost:17043",
+        "DOTNET_DASHBOARD_OTLP_GRPC_ENDPOINT_URL": "https://localhost:18889",
+        "DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL": "https://localhost:18890",
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:18891"
       },
       "serverReadyAction": {
         "action": "openExternally",
@@ -110,7 +114,11 @@
         "DOTNET_LAUNCH_PROFILE": "http",
         "WALLET_API_HOST_PORT": "5001",
         "WALLET_KAFKA_HOST_PORT": "19093",
-        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true"
+        "DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS": "true",
+        "ASPNETCORE_URLS": "https://localhost:17044",
+        "DOTNET_DASHBOARD_OTLP_GRPC_ENDPOINT_URL": "https://localhost:18892",
+        "DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL": "https://localhost:18893",
+        "DOTNET_RESOURCE_SERVICE_ENDPOINT_URL": "https://localhost:18894"
       },
       "serverReadyAction": {
         "action": "openExternally",

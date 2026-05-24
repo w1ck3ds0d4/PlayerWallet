@@ -1,9 +1,13 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
+// Resource names stay as "postgres" / "kafka" so the API's GetConnectionString("orleans") / GetConnectionString("kafka") keys are unchanged. To run v2 side-by-side with v1 we need DISTINCT Docker container names and volume names; set PLAYERWALLET_INSTANCE_TAG to anything non-empty (default "v2") and Aspire will create v2-specific containers and volumes so the two stacks don't fight.
+var instanceTag = Environment.GetEnvironmentVariable("PLAYERWALLET_INSTANCE_TAG") ?? "v2";
+
 // PostgreSQL backs the wallet state store and outbox. v2 runs synchronous_commit=on by default so headline numbers reflect durable single-node performance. Set PLAYERWALLET_PG_SYNC=off to opt back into the v1 dev-bench trade-off.
 var pgSyncCommit = Environment.GetEnvironmentVariable("PLAYERWALLET_PG_SYNC") == "off" ? "off" : "on";
 var postgres = builder.AddPostgres("postgres")
-    .WithDataVolume(isReadOnly: false)
+    .WithDataVolume($"playerwallet-{instanceTag}-postgres-data", isReadOnly: false)
+    .WithContainerName($"playerwallet-{instanceTag}-postgres")
     .WithLifetime(ContainerLifetime.Persistent)
     .WithArgs("-c", "max_connections=500",
               "-c", "shared_buffers=512MB",
@@ -31,6 +35,7 @@ if (!disableKafka)
     // Host port pinned and container recreated each run so KAFKA_ADVERTISED_LISTENERS matches the actual Docker bind (Aspire 13.3.3 + persistent lifetime each cause an advertised-vs-bound port mismatch on their own). Override via WALLET_KAFKA_HOST_PORT.
     var kafkaHostPort = int.TryParse(Environment.GetEnvironmentVariable("WALLET_KAFKA_HOST_PORT"), out var p) ? p : 19092;
     var kafka = builder.AddKafka("kafka", port: kafkaHostPort)
+        .WithContainerName($"playerwallet-{instanceTag}-kafka")
         .WithKafkaUI();
 
     api.WithReference(kafka).WaitFor(kafka);
