@@ -90,6 +90,20 @@ tbody tr:hover { background: rgba(56,189,248,0.05); }
 .comparison-table td:nth-child(1),
 .comparison-table td:nth-child(2) { text-align: left; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
 .comparison-table thead th[colspan="3"] { background: rgba(56,189,248,0.08); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
-.comparison-table .delta-better { color: var(--ok); font-weight: 600; }
-.comparison-table .delta-worse  { color: var(--bad); font-weight: 600; }
-.comparison-table .delta-neutral { color: var(--muted); }
+
+/* Delta cells: brighter colors + background tint so they pop visibly even at small magnitudes.
+   Higher specificity (table.comparison-table tbody td.X) ensures these win over any inherited
+   table-cell color. */
+table.comparison-table tbody td.delta-better {
+  color: #4ade80;
+  font-weight: 700;
+  background: rgba(34, 197, 94, 0.12);
+}
+table.comparison-table tbody td.delta-worse {
+  color: #f87171;
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.12);
+}
+table.comparison-table tbody td.delta-neutral {
+  color: #94a3b8;
+}
