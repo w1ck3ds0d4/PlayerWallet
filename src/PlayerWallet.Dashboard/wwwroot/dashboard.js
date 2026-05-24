@@ -331,22 +331,47 @@ function deltaCell(v1, v2) {
   }
   const pct = ((v2 - v1) / v1) * 100;
   const abs = Math.abs(pct);
-  // ±2% threshold: smaller than that is measurement noise on a 30s bench, so neither side wins.
-  // Arrow direction always reflects sign so even tiny differences show which way they lean.
+
+  // ±2% threshold: smaller than that is measurement noise.
+  // Above 50% reduction (or 100% increase), percentage loses meaning: -99.95% just says
+  // 'a lot smaller' but doesn't convey 'v2 is 1974× faster than v1'. Switch to multiplier
+  // notation for dramatic deltas so the magnitude is unmistakable in the interview screen.
   let cls;
   let arrow;
+  let label;
+
   if (abs < 2) {
     cls = 'delta-neutral';
     arrow = '·';
+    label = `${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%`;
   } else if (pct < 0) {
     cls = 'delta-better';
     arrow = '▼';
+    if (abs >= 50 && v2 > 0) {
+      const ratio = v1 / v2;
+      label = `${formatRatio(ratio)}× faster`;
+    } else {
+      label = `${pct.toFixed(0)}%`;
+    }
   } else {
     cls = 'delta-worse';
     arrow = '▲';
+    if (abs >= 100 && v1 > 0) {
+      const ratio = v2 / v1;
+      label = `${formatRatio(ratio)}× slower`;
+    } else {
+      label = `+${pct.toFixed(0)}%`;
+    }
   }
-  const sign = pct > 0 ? '+' : '';
-  return `<td class="${cls}">${arrow} ${sign}${pct.toFixed(0)}%</td>`;
+
+  return `<td class="${cls}">${arrow} ${label}</td>`;
+}
+
+function formatRatio(r) {
+  if (r >= 1000) return Math.round(r).toLocaleString();
+  if (r >= 100)  return r.toFixed(0);
+  if (r >= 10)   return r.toFixed(1);
+  return r.toFixed(2);
 }
 
 async function refreshHistory() {
