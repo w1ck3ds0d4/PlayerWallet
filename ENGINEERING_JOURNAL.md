@@ -744,7 +744,7 @@ The chain of levers that mattered:
       under load dropping from 10 s to roughly 50 ms by Little's Law.
       **Empirically the opposite happened**: 60s × 1000 rps add-funds
       went from `60 000 ok / 0 fail` (sync baseline) to
-      `31 570 ok / 28 430 timeouts` (fire-and-forget) — throughput
+      `31 570 ok / 28 430 timeouts` (fire-and-forget), throughput
       halved, latency hit the 30 s client cap. The diagnosis is
       **load-shedding paradox**: the synchronous `await ProduceAsync`
       was acting as natural back-pressure. By making each request

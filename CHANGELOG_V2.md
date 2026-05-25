@@ -41,7 +41,7 @@ and fixes them.
 
 - The `add-funds` 60s anomaly was stochastic; the longer pre-warm + multi-worker drainer reduce the chance but can't eliminate it. If you see it again, open v2's Aspire dashboard and inspect the slowest trace in the window; the OTel spans + tags will tell you whether it was DB-side or app-side.
 - Bench environment hygiene: `wallet_outbox` grows across bench sessions and Postgres index bloat can cause drift. If you see consistent slow runs across all scenarios, restart v2's AppHost (volume gets recreated) or manually `VACUUM ANALYZE wallet_outbox` from a Postgres client.
-- v1's per-grain ceiling is unchanged. v1's hot-wallet capacity is roughly ~7 rps before queueing hurts you. The new `hot-wallet=50rps` default still pushes v1 past its limit, which is intentional — that's the point of the comparison.
+- v1's per-grain ceiling is unchanged. v1's hot-wallet capacity is roughly ~7 rps before queueing hurts you. The new `hot-wallet=50rps` default still pushes v1 past its limit, which is intentional, that's the point of the comparison.
 
 ## v2.1: hot-path performance pass
 
