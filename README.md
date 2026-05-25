@@ -7,8 +7,8 @@ commits balance + outbox event in a single PostgreSQL transaction; a
 background `WalletOutboxDrainer` reads `wallet_outbox` and publishes to
 Kafka off the request path.
 
-> **v2 release notes.** This is a fork of the original PlayerWallet that
-> applies the improvements identified in the v1 post-mortem study guide:
+> **v2 release notes.** This is a fork of [PlayerWallet v1](https://github.com/w1ck3ds0d4/PlayerWallet)
+> that applies the improvements identified in the v1 post-mortem study guide:
 > horizontal-scale-safe outbox drainer (`FOR UPDATE SKIP LOCKED`), real LRU
 > idempotency cache, outbox back-pressure gate (HTTP 503), endpoint
 > pre-grain validation, `synchronous_commit=on` by default, currency column
