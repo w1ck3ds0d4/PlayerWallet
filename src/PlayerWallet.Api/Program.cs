@@ -180,29 +180,29 @@ if (usingPostgres && app.Environment.IsDevelopment())
         var rows = new List<object>();
         while (await reader.ReadAsync(ct))
         {
-            var lastVacuum     = await reader.IsDBNullAsync(7, ct)  ? (DateTime?)null : reader.GetDateTime(7);
-            var lastAutovacuum = await reader.IsDBNullAsync(8, ct)  ? (DateTime?)null : reader.GetDateTime(8);
-            var lastAnalyze    = await reader.IsDBNullAsync(9, ct)  ? (DateTime?)null : reader.GetDateTime(9);
+            var lastVacuum = await reader.IsDBNullAsync(7, ct) ? (DateTime?)null : reader.GetDateTime(7);
+            var lastAutovacuum = await reader.IsDBNullAsync(8, ct) ? (DateTime?)null : reader.GetDateTime(8);
+            var lastAnalyze = await reader.IsDBNullAsync(9, ct) ? (DateTime?)null : reader.GetDateTime(9);
             var lastAutoanalyze = await reader.IsDBNullAsync(10, ct) ? (DateTime?)null : reader.GetDateTime(10);
 
             rows.Add(new
             {
-                tableName            = reader.GetString(0),
-                liveTuples           = reader.GetInt64(1),
-                deadTuples           = reader.GetInt64(2),
-                inserts              = reader.GetInt64(3),
-                updates              = reader.GetInt64(4),
-                deletes              = reader.GetInt64(5),
-                hotUpdates           = reader.GetInt64(6),
+                tableName = reader.GetString(0),
+                liveTuples = reader.GetInt64(1),
+                deadTuples = reader.GetInt64(2),
+                inserts = reader.GetInt64(3),
+                updates = reader.GetInt64(4),
+                deletes = reader.GetInt64(5),
+                hotUpdates = reader.GetInt64(6),
                 lastVacuum,
                 lastAutovacuum,
                 lastAnalyze,
                 lastAutoanalyze,
-                vacuumCount          = reader.GetInt64(11),
-                autovacuumCount      = reader.GetInt64(12),
-                totalSizeBytes       = reader.GetInt64(13),
-                tableSizeBytes       = reader.GetInt64(14),
-                indexesSizeBytes     = reader.GetInt64(15),
+                vacuumCount = reader.GetInt64(11),
+                autovacuumCount = reader.GetInt64(12),
+                totalSizeBytes = reader.GetInt64(13),
+                tableSizeBytes = reader.GetInt64(14),
+                indexesSizeBytes = reader.GetInt64(15),
             });
         }
 
