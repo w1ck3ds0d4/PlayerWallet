@@ -65,4 +65,4 @@ test suite, and load harness.
 
 - Production hosting of the AppHosts (Aspire is dev-only by design)
 - Multi-region or distributed Orleans clusters (each version stays single-silo)
-- Anything that requires changes inside `v1/` or `v2/` source — versions stay frozen at their snapshot SHA
+- Anything that requires changes inside `v1/` or `v2/` source - versions stay frozen at their snapshot SHA
