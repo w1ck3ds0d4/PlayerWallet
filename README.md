@@ -85,3 +85,10 @@ in isolation.
 - .NET 10 SDK
 - Docker Desktop running (for each version's Aspire AppHost; Postgres + Kafka)
 - `gh` CLI (optional; used to drive CI and merge PRs)
+
+## License
+
+This project is dual-licensed:
+
+AGPL v3 - free for open-source use. Derivatives and SaaS deployments must release their source under AGPL.
+Commercial license - for proprietary / closed-source use or hosted services that do not want to comply with AGPL source-disclosure requirements. Contact for terms.
