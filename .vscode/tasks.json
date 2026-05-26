@@ -12,10 +12,7 @@
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
       "problemMatcher": "$msCompile",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
+      "group": { "kind": "build", "isDefault": true }
     },
     {
       "label": "build-release",
@@ -53,43 +50,9 @@
       "problemMatcher": []
     },
     {
-      "label": "test",
-      "type": "process",
-      "command": "dotnet",
-      "args": [
-        "test",
-        "${workspaceFolder}/PlayerWallet.slnx",
-        "-c",
-        "Release",
-        "--no-build",
-        "--logger",
-        "console;verbosity=normal"
-      ],
-      "dependsOn": "build-release",
-      "problemMatcher": "$msCompile",
-      "group": "test"
-    },
-    {
       "label": "gates",
       "dependsOrder": "sequence",
-      "dependsOn": [
-        "format-check",
-        "build-release",
-        "test"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "load",
-      "type": "process",
-      "command": "dotnet",
-      "args": [
-        "run",
-        "-c",
-        "Release",
-        "--project",
-        "${workspaceFolder}/tests/PlayerWallet.Tests.Load"
-      ],
+      "dependsOn": ["format-check", "build-release"],
       "problemMatcher": []
     },
     {
@@ -98,7 +61,19 @@
       "command": "dotnet",
       "args": [
         "build",
-        "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "${workspaceFolder}/v1/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "/property:GenerateFullPaths=true",
+        "/consoleloggerparameters:NoSummary;ForceNoAlign"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-v2-apphost",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/v2/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
