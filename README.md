@@ -1,4 +1,4 @@
-# PlayerWallet v2
+# GrainWallet
 
 Per-player wallet microservice built on .NET Aspire, Microsoft Orleans, and Kafka.
 Three HTTP operations: credit funds, debit funds, read balance. Per-grain
@@ -7,16 +7,15 @@ commits balance + outbox event in a single PostgreSQL transaction; a
 background `WalletOutboxDrainer` reads `wallet_outbox` and publishes to
 Kafka off the request path.
 
-> **v2 release notes.** This is a fork of [PlayerWallet v1](https://github.com/w1ck3ds0d4/PlayerWallet)
-> that applies the improvements identified in the v1 post-mortem study guide:
-> horizontal-scale-safe outbox drainer (`FOR UPDATE SKIP LOCKED`), real LRU
-> idempotency cache, outbox back-pressure gate (HTTP 503), endpoint
-> pre-grain validation, `synchronous_commit=on` by default, currency column
-> tightened to `VARCHAR(3)` with a CHECK constraint, and a breaking event
-> rename (`DeductionRejected` -> `OperationRejected`). Full delta:
-> [`CHANGELOG_V2.md`](CHANGELOG_V2.md). The v1 ENGINEERING_JOURNAL.md is
-> preserved verbatim as a historical record of how the original came
-> together.
+> **Repo layout: v1 vs v2.** `main` carries v2: horizontal-scale-safe outbox
+> drainer (`FOR UPDATE SKIP LOCKED`), real LRU idempotency cache, outbox
+> back-pressure gate (HTTP 503), endpoint pre-grain validation,
+> `synchronous_commit=on` by default, currency column tightened to
+> `VARCHAR(3)` with a CHECK constraint, and a breaking event rename
+> (`DeductionRejected` -> `OperationRejected`). The full v1 codebase is
+> preserved on the [`v1`](https://github.com/w1ck3ds0d4/GrainWallet/tree/v1)
+> branch; v1's `ENGINEERING_JOURNAL.md` is kept verbatim as a historical
+> record. Full v1 -> v2 delta: [`CHANGELOG_V2.md`](CHANGELOG_V2.md).
 
 > **v1-vs-v2 comparison dashboard.** A standalone ASP.NET Core app at
 > [`src/PlayerWallet.Dashboard`](src/PlayerWallet.Dashboard) gives you a
@@ -202,17 +201,25 @@ and click "Run benchmark" to see latency side by side.
 
 ### Boot v1 + v2 on side-by-side ports
 
+v1 lives on the `v1` branch of this repo. The simplest layout is a sibling
+git worktree:
+
+```powershell
+cd C:\Users\danie\Documents\GitHub\repos\GrainWallet
+git worktree add ..\GrainWallet-v1 v1
+```
+
 Terminal A (v1):
 
 ```powershell
-cd C:\Users\danie\Documents\GitHub\repos\PlayerWallet
+cd C:\Users\danie\Documents\GitHub\repos\GrainWallet-v1
 dotnet run --project src/PlayerWallet.AppHost
 ```
 
 Terminal B (v2 on alternate ports):
 
 ```powershell
-cd C:\Users\danie\Documents\GitHub\repos\PlayerWalletv2
+cd C:\Users\danie\Documents\GitHub\repos\GrainWallet
 $env:WALLET_API_HOST_PORT = "5001"
 $env:WALLET_KAFKA_HOST_PORT = "19093"
 dotnet run --project src/PlayerWallet.AppHost
@@ -221,7 +228,7 @@ dotnet run --project src/PlayerWallet.AppHost
 Terminal C (dashboard):
 
 ```powershell
-cd C:\Users\danie\Documents\GitHub\repos\PlayerWalletv2
+cd C:\Users\danie\Documents\GitHub\repos\GrainWallet
 dotnet run --project src/PlayerWallet.Dashboard
 ```
 
