@@ -1,50 +1,33 @@
 # GrainWallet
 
 Comparison harness for the GrainWallet per-player wallet microservice across
-versions. `main` is a thin orchestration hub: it carries only the comparison
+versions. The repo root is an orchestration hub carrying the comparison
 dashboard, the workspace tooling, and this README. Each numbered version of
-the service lives on its own branch (`v1`, `v2`, ...) and is checked out as a
-sibling worktree under `vN/` on disk.
+the service lives in its own committed subfolder (`v1/`, `v2/`, ...).
 
 ## Repo layout
 
 ```
-GrainWallet/                                  (main branch: hub-only)
+GrainWallet/
   src/PlayerWallet.Dashboard/                 NBomber-driven side-by-side comparison UI
-  v1/                                         git worktree -> v1 branch (full v1 source)
-  v2/                                         git worktree -> v2 branch (full v2 source)
+  v1/                                         full v1 source (committed)
+  v2/                                         full v2 source (committed)
   vN/                                         add more versions the same way
   .vscode/                                    Compare compound + per-version build tasks
   PlayerWallet.slnx                           Hub solution (Dashboard only)
 ```
 
-`v1/`, `v2/`, ... are ignored on `main` (see `.gitignore`), so the hub commit
-graph stays free of version source.
+Clone-and-run: `git clone` is enough. No worktree or submodule setup.
 
-## What each branch is
+## What each version is
 
-| Branch | What lives there |
+| Folder | What lives there |
 |---|---|
-| `main` | This hub: Dashboard, workspace config, no service code. |
-| `v1`   | Original PlayerWallet submission: in-memory LRU, basic outbox drainer, original event names. |
-| `v2`   | Hardened revision: `FOR UPDATE SKIP LOCKED` outbox, real LRU idempotency, back-pressure gate (HTTP 503), endpoint pre-grain validation, `synchronous_commit=on`, currency `VARCHAR(3)` + CHECK, event rename (`DeductionRejected` -> `OperationRejected`). |
+| `v1/` | Original PlayerWallet submission: in-memory LRU, basic outbox drainer, original event names. |
+| `v2/` | Hardened revision: `FOR UPDATE SKIP LOCKED` outbox, real LRU idempotency, back-pressure gate (HTTP 503), endpoint pre-grain validation, `synchronous_commit=on`, currency `VARCHAR(3)` + CHECK, event rename (`DeductionRejected` -> `OperationRejected`). |
 
-Each version branch carries its own `README.md`, `ENGINEERING_JOURNAL.md`,
+Each version folder carries its own `README.md`, `ENGINEERING_JOURNAL.md`,
 `DEMO.md`, tests, and load harness.
-
-## Set up worktrees
-
-After cloning this repo, materialize the version subfolders:
-
-```powershell
-cd C:\Users\danie\Documents\GitHub\repos\GrainWallet
-git worktree add v1 v1
-git worktree add v2 v2
-```
-
-Each `git worktree add` creates `vN/` with the branch checked out. To add a
-future v3, you create branch `v3` (typically from `v2`) and run
-`git worktree add v3 v3`.
 
 ## Run the comparison dashboard
 
@@ -60,7 +43,7 @@ cd v1
 dotnet run --project src/PlayerWallet.AppHost
 
 # Terminal B: v2 on overridden ports (API 5001, Kafka 19093)
-cd v2
+cd ..\v2
 $env:WALLET_API_HOST_PORT = "5001"
 $env:WALLET_KAFKA_HOST_PORT = "19093"
 dotnet run --project src/PlayerWallet.AppHost
@@ -80,8 +63,10 @@ project name to a base URL:
 ]
 ```
 
-Adding a third version means starting v3 on its own port and adding a third
-entry to that list.
+Adding a third version means dropping the new source under `v3/`, starting
+v3 on its own port, adding a third `Projects` entry, and copying the
+`v1 AppHost` launch config in `.vscode/launch.json` to a `v3 AppHost`
+variant.
 
 ## Local CI gates
 
@@ -91,7 +76,9 @@ dotnet build  PlayerWallet.slnx -c Release -warnaserror
 ```
 
 These also run on every push and PR to `main` via `.github/workflows/ci.yml`.
-Per-version branches keep their own test workflows.
+The hub's `PlayerWallet.slnx` only references the Dashboard project; each
+`vN/` folder ships its own solution if you want to build that version
+in isolation.
 
 ## Prerequisites
 

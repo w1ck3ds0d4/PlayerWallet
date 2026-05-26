@@ -33,6 +33,9 @@ coverage/
 *.coveragexml
 .cover/
 
+# Load test reports: bench artifacts (HTML / TXT / CSV / MD) are tracked as the submission deliverable. NBomber's per-run debug log can be tens of megabytes when there are failures, so it stays ignored.
+tests/PlayerWallet.Tests.Load/reports/**/nbomber-log-*.txt
+
 # Dashboard NBomber output: every interactive run from the comparison dashboard generates a timestamped report folder. These are ephemeral debugging output (the dashboard renders results from in-memory NodeStats), not deliverables.
 src/PlayerWallet.Dashboard/reports/
 src/PlayerWallet.Dashboard/**/reports/
