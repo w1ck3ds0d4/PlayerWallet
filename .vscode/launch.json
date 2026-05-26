@@ -21,7 +21,7 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 1 }
+      "presentation": { "group": "GrainWallet", "order": 1 }
     },
     {
       "name": "Run AppHost (no debug)",
@@ -43,7 +43,7 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 2 }
+      "presentation": { "group": "GrainWallet", "order": 2 }
     },
     {
       "name": "Run Load Benchmarks (NBomber)",
@@ -58,7 +58,7 @@
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 3 }
+      "presentation": { "group": "GrainWallet", "order": 3 }
     },
     {
       "name": "Open Scalar API UI",
@@ -67,16 +67,16 @@
       "url": "https://localhost:7223/scalar/v1",
       "webRoot": "${workspaceFolder}/src/PlayerWallet.Api",
       "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
-      "presentation": { "group": "PlayerWalletv2", "order": 4 }
+      "presentation": { "group": "GrainWallet", "order": 4 }
     },
     {
       "name": "v1 AppHost (port 5000)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-v1-apphost",
-      "program": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "program": "c:/Users/danie/Documents/GitHub/repos/GrainWallet-v1/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
       "args": [],
-      "cwd": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost",
+      "cwd": "c:/Users/danie/Documents/GitHub/repos/GrainWallet-v1/src/PlayerWallet.AppHost",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
@@ -96,7 +96,7 @@
         "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 2 }
+      "presentation": { "group": "GrainWallet Compare", "order": 2 }
     },
     {
       "name": "v2 AppHost (port 5001)",
@@ -125,7 +125,7 @@
         "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 3 }
+      "presentation": { "group": "GrainWallet Compare", "order": 3 }
     },
     {
       "name": "Dashboard (port 5100)",
@@ -143,7 +143,7 @@
         "pattern": "Now listening on:\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 4 }
+      "presentation": { "group": "GrainWallet Compare", "order": 4 }
     }
   ],
   "compounds": [
@@ -151,7 +151,7 @@
       "name": "AppHost + Scalar UI",
       "configurations": ["Run AppHost (Aspire)", "Open Scalar API UI"],
       "stopAll": true,
-      "presentation": { "group": "PlayerWalletv2", "order": 0 }
+      "presentation": { "group": "GrainWallet", "order": 0 }
     },
     {
       "name": "Compare: v1 + v2 + Dashboard",
@@ -161,7 +161,7 @@
         "Dashboard (port 5100)"
       ],
       "stopAll": true,
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 1 }
+      "presentation": { "group": "GrainWallet Compare", "order": 1 }
     }
   ]
 }

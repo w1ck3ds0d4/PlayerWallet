@@ -98,7 +98,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "c:/Users/danie/Documents/GitHub/repos/GrainWallet-v1/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
