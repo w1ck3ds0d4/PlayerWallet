@@ -665,7 +665,7 @@ $('#reset-outboxes').addEventListener('click', async () => {
     const resp = await fetch('/api/reset-outboxes', { method: 'POST' });
     const results = await resp.json();
     const summary = results.map(r => `${r.project}: ${r.ok ? 'cleared' : (r.statusCode || 'err') + ' (' + r.note + ')'}`).join(' | ');
-    setRunStatus(`Reset outboxes — ${summary}`, results.every(r => r.ok) ? 'done' : 'progress');
+    setRunStatus(`Reset outboxes - ${summary}`, results.every(r => r.ok) ? 'done' : 'progress');
   } catch (e) {
     setRunStatus(`Reset failed: ${e.message}`, 'fail');
   } finally {
