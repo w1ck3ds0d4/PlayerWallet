@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/GrainWallet.Api/GrainWallet.Api.csproj" />
+    <Project Path="src/GrainWallet.AppHost/GrainWallet.AppHost.csproj" />
+    <Project Path="src/GrainWallet.Contracts/GrainWallet.Contracts.csproj" />
+    <Project Path="src/GrainWallet.Dashboard/GrainWallet.Dashboard.csproj" />
+    <Project Path="src/GrainWallet.Grains/GrainWallet.Grains.csproj" />
+    <Project Path="src/GrainWallet.ServiceDefaults/GrainWallet.ServiceDefaults.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/GrainWallet.Tests.Component/GrainWallet.Tests.Component.csproj" />
+    <Project Path="tests/GrainWallet.Tests.Load/GrainWallet.Tests.Load.csproj" />
+  </Folder>
+</Solution>

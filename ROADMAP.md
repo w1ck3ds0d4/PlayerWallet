@@ -36,7 +36,7 @@ test suite, and load harness.
 - [ ] Run each benchmark (`add-funds`, `deduct-funds`, `get-balance`) and confirm side-by-side cards render
 - [ ] Capture a screenshot for the README
 
-**Acceptance:** zero manual steps beyond `git clone`, `dotnet run --project src/PlayerWallet.Dashboard`, and the per-version AppHost launch.
+**Acceptance:** zero manual steps beyond `git clone`, `dotnet run --project src/GrainWallet.Dashboard`, and the per-version AppHost launch.
 
 ### M2. Reviewer-facing diff badge (M)
 

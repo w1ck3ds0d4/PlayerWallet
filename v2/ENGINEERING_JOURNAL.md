@@ -1,5 +1,14 @@
 # Engineering Journal
 
+## Incident correction
+
+The failure claims in sections 3.3, 3.4, and 5 are superseded by the
+correctness hotfix in `CHANGELOG_V2.md`. In particular, consumer dedupe by
+`event_id` cannot catch replay of an `operationId`, because the replay creates
+a new event id; an unlogged outbox is not at-least-once; and mutating grain
+memory before an awaited save does not produce a clean failure. Those were
+correctness defects, not safe performance tradeoffs.
+
 A working log of how this codebase came together with AI assistance: the
 tools, the prompts that worked, the prompts that needed correction, the
 decisions and their trade-offs, the failure-recovery semantics, the
@@ -94,7 +103,7 @@ a runtime "embedded resource not found" failure on first AppHost run.
 
 The fix: download `PostgreSQL-Main.sql` and `PostgreSQL-Persistence.sql`
 from `dotnet/orleans` at tag `v10.1.0`, vendor them into
-`src/PlayerWallet.Api/Db/Schema/`, mark as `<EmbeddedResource>`, and
+`src/GrainWallet.Api/Db/Schema/`, mark as `<EmbeddedResource>`, and
 read via `Assembly.GetManifestResourceStream`. The bootstrap is
 idempotent: it checks for the `orleansstorage` table via
 `to_regclass()` and skips entirely when present.
@@ -140,7 +149,7 @@ HttpClient pool was forced to open a fresh socket (and a fresh source
 port) for the next request. At 1000 rps with a 16k port pool, the OS
 ran out in ~16 seconds.
 
-The fix lives in `tests/PlayerWallet.Tests.Load/Scenarios/WalletScenarios.cs`:
+The fix lives in `tests/GrainWallet.Tests.Load/Scenarios/WalletScenarios.cs`:
 every scenario uses `using var response = ...` and drains the body to
 `Stream.Null` via `HttpCompletionOption.ResponseHeadersRead` +
 `CopyToAsync(Stream.Null)`. Connections return to the pool after each
@@ -506,12 +515,12 @@ The spec asked for "a sustained load of 1,000 requests per second" for
 deviation. Run on a single developer laptop (Windows 11, Docker
 Desktop, single-container Postgres + single-broker Kafka). The
 benchmark was conducted with the harness in
-`tests/PlayerWallet.Tests.Load/Scenarios/WalletScenarios.cs`, which
+`tests/GrainWallet.Tests.Load/Scenarios/WalletScenarios.cs`, which
 disposes every `HttpResponseMessage` and drains the body to
 `Stream.Null` so the HttpClient pool recycles connections cleanly.
 
 The numbers below are unedited from the NBomber `.txt` reports under
-`tests/PlayerWallet.Tests.Load/reports/<scenario>/`. The bench ran
+`tests/GrainWallet.Tests.Load/reports/<scenario>/`. The bench ran
 against the AppHost in `Release` configuration with Postgres tuned
 for `max_connections=500` and `shared_buffers=512MB`, Npgsql
 `Maximum Pool Size=300`, Kafka producer config in single-broker
@@ -525,7 +534,7 @@ The spec mandates "a sustained load of 1,000 requests per second for
 standard deviation for response times." Below are the numbers from
 a full 5-minute run on each endpoint. The bench seeds 1001 wallets,
 **pre-warms every grain via GET /balance** before the first
-measurement (`tests/PlayerWallet.Tests.Load/WalletPool.PreWarmAsync`),
+measurement (`tests/GrainWallet.Tests.Load/WalletPool.PreWarmAsync`),
 warms up for 30 seconds, then measures for 300 seconds.
 
 ```
@@ -839,7 +848,7 @@ bug:
 
 The scenario remains wired up in `WalletScenarios.HotWalletDeducts`
 and can be run solo on Linux via
-`dotnet run -c Release --project tests/PlayerWallet.Tests.Load -- hot-wallet`.
+`dotnet run -c Release --project tests/GrainWallet.Tests.Load -- hot-wallet`.
 The architectural story stays the same: the per-grain ceiling is
 the right place to start any conversation about scaling a single
 hot player (multi-currency sub-grains, reservation grains in

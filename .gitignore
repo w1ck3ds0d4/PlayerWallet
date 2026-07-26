@@ -34,8 +34,8 @@ coverage/
 .cover/
 
 # Dashboard NBomber output: every interactive run from the comparison dashboard generates a timestamped report folder. These are ephemeral debugging output (the dashboard renders results from in-memory NodeStats), not deliverables.
-src/PlayerWallet.Dashboard/reports/
-src/PlayerWallet.Dashboard/**/reports/
+src/GrainWallet.Dashboard/reports/
+src/GrainWallet.Dashboard/**/reports/
 
 # Logs
 *.log

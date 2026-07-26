@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWalletv2.AppHost.dll",
+      "program": "${workspaceFolder}/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWalletv2.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/src/GrainWallet.AppHost",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
@@ -21,16 +21,16 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 1 }
+      "presentation": { "group": "GrainWalletv2", "order": 1 }
     },
     {
       "name": "Run AppHost (no debug)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWalletv2.AppHost.dll",
+      "program": "${workspaceFolder}/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWalletv2.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/src/GrainWallet.AppHost",
       "console": "internalConsole",
       "noDebug": true,
       "env": {
@@ -43,40 +43,40 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 2 }
+      "presentation": { "group": "GrainWalletv2", "order": 2 }
     },
     {
       "name": "Run Load Benchmarks (NBomber)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-release",
-      "program": "${workspaceFolder}/tests/PlayerWallet.Tests.Load/bin/Release/net10.0/PlayerWallet.Tests.Load.dll",
+      "program": "${workspaceFolder}/tests/GrainWallet.Tests.Load/bin/Release/net10.0/GrainWallet.Tests.Load.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/tests/PlayerWallet.Tests.Load",
+      "cwd": "${workspaceFolder}/tests/GrainWallet.Tests.Load",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
       },
-      "presentation": { "group": "PlayerWalletv2", "order": 3 }
+      "presentation": { "group": "GrainWalletv2", "order": 3 }
     },
     {
       "name": "Open Scalar API UI",
       "type": "chrome",
       "request": "launch",
       "url": "https://localhost:7223/scalar/v1",
-      "webRoot": "${workspaceFolder}/src/PlayerWallet.Api",
+      "webRoot": "${workspaceFolder}/src/GrainWallet.Api",
       "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
-      "presentation": { "group": "PlayerWalletv2", "order": 4 }
+      "presentation": { "group": "GrainWalletv2", "order": 4 }
     },
     {
       "name": "v1 AppHost (port 5000)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-v1-apphost",
-      "program": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "program": "c:/Users/danie/Documents/GitHub/repos/GrainWallet/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWallet.AppHost.dll",
       "args": [],
-      "cwd": "c:/Users/danie/Documents/GitHub/repos/PlayerWallet/src/PlayerWallet.AppHost",
+      "cwd": "c:/Users/danie/Documents/GitHub/repos/GrainWallet/src/GrainWallet.AppHost",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
@@ -96,16 +96,16 @@
         "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 2 }
+      "presentation": { "group": "GrainWalletv2 Compare", "order": 2 }
     },
     {
       "name": "v2 AppHost (port 5001)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWalletv2.AppHost.dll",
+      "program": "${workspaceFolder}/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWalletv2.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/src/GrainWallet.AppHost",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
@@ -125,15 +125,15 @@
         "pattern": "(?:Login to the dashboard at|Now listening on:)\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 3 }
+      "presentation": { "group": "GrainWalletv2 Compare", "order": 3 }
     },
     {
       "name": "Dashboard (port 5100)",
       "type": "node-terminal",
       "request": "launch",
       "preLaunchTask": "kill-dashboard",
-      "command": "dotnet run --project ${workspaceFolder}/src/PlayerWallet.Dashboard --no-launch-profile",
-      "cwd": "${workspaceFolder}/src/PlayerWallet.Dashboard",
+      "command": "dotnet run --project ${workspaceFolder}/src/GrainWallet.Dashboard --no-launch-profile",
+      "cwd": "${workspaceFolder}/src/GrainWallet.Dashboard",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5100"
@@ -143,7 +143,7 @@
         "pattern": "Now listening on:\\s+(https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 4 }
+      "presentation": { "group": "GrainWalletv2 Compare", "order": 4 }
     }
   ],
   "compounds": [
@@ -151,7 +151,7 @@
       "name": "AppHost + Scalar UI",
       "configurations": ["Run AppHost (Aspire)", "Open Scalar API UI"],
       "stopAll": true,
-      "presentation": { "group": "PlayerWalletv2", "order": 0 }
+      "presentation": { "group": "GrainWalletv2", "order": 0 }
     },
     {
       "name": "Compare: v1 + v2 + Dashboard",
@@ -161,7 +161,7 @@
         "Dashboard (port 5100)"
       ],
       "stopAll": true,
-      "presentation": { "group": "PlayerWalletv2 Compare", "order": 1 }
+      "presentation": { "group": "GrainWalletv2 Compare", "order": 1 }
     }
   ]
 }
