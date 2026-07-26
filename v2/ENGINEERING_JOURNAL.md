@@ -737,7 +737,7 @@ The chain of levers that mattered:
       drop to ~6 ms, but under sustained 1000 rps the producer's
       internal queue grew unbounded and back-pressured the request
       path harder than the original `ProduceAsync` ack-wait. Reverted.
-    - Disabling Kafka entirely via `PLAYERWALLET_DISABLE_KAFKA=1` AppHost
+    - Disabling Kafka entirely via `GRAINWALLET_DISABLE_KAFKA=1` AppHost
       flag (kept as a perf-debugging tool, not the production default).
       This proved Kafka was NOT the dominant write-path cost: with the
       no-op publisher, throughput stayed at the same 25-300 rps

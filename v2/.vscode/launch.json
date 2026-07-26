@@ -66,7 +66,7 @@
       "request": "launch",
       "url": "https://localhost:7223/scalar/v1",
       "webRoot": "${workspaceFolder}/src/GrainWallet.Api",
-      "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
+      "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/grainwallet-scalar",
       "presentation": { "group": "GrainWalletv2", "order": 4 }
     },
     {

@@ -123,7 +123,7 @@ the original semantic across a clean restart.
 | 8 | `wallet.outbox_pending` OTel meter is now actually fed. Drainer publishes pending count every 2 s; gauge surfaces it to the Aspire dashboard. | [`src/GrainWallet.Api/Db/WalletOutboxDrainer.cs`](src/GrainWallet.Api/Db/WalletOutboxDrainer.cs), [`src/GrainWallet.Grains/Telemetry/WalletMeters.cs`](src/GrainWallet.Grains/Telemetry/WalletMeters.cs) | v1 gauge had no call sites; always read zero. |
 | 9 | `Money.Add` and `Money.Subtract` use `checked()`. Overflow throws instead of wrapping. | [`src/GrainWallet.Contracts/Money.cs`](src/GrainWallet.Contracts/Money.cs) | Theoretical only, but a financial service should be paranoid. |
 | 10 | Route constraint on `playerId` (`minlength(1):maxlength(64)`). | [`src/GrainWallet.Api/Endpoints/WalletEndpoints.cs`](src/GrainWallet.Api/Endpoints/WalletEndpoints.cs) | A 100 KB `playerId` could inflate Postgres rows and OTel span tags. |
-| 11 | `synchronous_commit` defaults to `on` in the AppHost Postgres config. v1 dev-bench setting (`off`) is opt-in via `PLAYERWALLET_PG_SYNC=off`. | [`src/GrainWallet.AppHost/AppHost.cs`](src/GrainWallet.AppHost/AppHost.cs) | v1 headline numbers were measured without durable commits. |
+| 11 | `synchronous_commit` defaults to `on` in the AppHost Postgres config. v1 dev-bench setting (`off`) is opt-in via `GRAINWALLET_PG_SYNC=off`. | [`src/GrainWallet.AppHost/AppHost.cs`](src/GrainWallet.AppHost/AppHost.cs) | v1 headline numbers were measured without durable commits. |
 | 12 | Dead `MemoryGrainStorage("WalletStorage")` registration removed. Wallet grain now goes through `IWalletStateStore` exclusively. | [`src/GrainWallet.Api/Program.cs`](src/GrainWallet.Api/Program.cs), [`tests/.../WalletGrainTestCluster.cs`](tests/GrainWallet.Tests.Component/Grain/WalletGrainTestCluster.cs) | Cosmetic but misleading on a code walk-through. |
 | 13 | Pre-warm in the load harness switched to no-op mutations (add 0.01 + deduct 0.01) instead of GET /balance. | [`tests/GrainWallet.Tests.Load/WalletPool.cs`](tests/GrainWallet.Tests.Load/WalletPool.cs) | v1 add-funds p95 ran ~5 ms over the 100 ms target due to first-mutation cost in the bench window. |
 
@@ -181,7 +181,7 @@ Expected directional changes vs v1:
 To reproduce the v1 trade-off (durability off, for dev throughput):
 
 ```powershell
-$env:PLAYERWALLET_PG_SYNC = "off"
+$env:GRAINWALLET_PG_SYNC = "off"
 ```
 
 ## Known weaknesses still in v2
