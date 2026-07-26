@@ -7,7 +7,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -20,7 +20,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "-c",
         "Release",
         "/property:GenerateFullPaths=true",
@@ -34,7 +34,7 @@
       "command": "dotnet",
       "args": [
         "format",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "--verify-no-changes"
       ],
       "problemMatcher": []
@@ -45,7 +45,7 @@
       "command": "dotnet",
       "args": [
         "format",
-        "${workspaceFolder}/PlayerWallet.slnx"
+        "${workspaceFolder}/GrainWallet.slnx"
       ],
       "problemMatcher": []
     },
@@ -61,7 +61,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/v1/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "${workspaceFolder}/v1/src/GrainWallet.AppHost/GrainWallet.AppHost.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -73,7 +73,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/v2/src/PlayerWallet.AppHost/PlayerWallet.AppHost.csproj",
+        "${workspaceFolder}/v2/src/GrainWallet.AppHost/GrainWallet.AppHost.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -85,7 +85,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/src/PlayerWallet.Dashboard/PlayerWallet.Dashboard.csproj",
+        "${workspaceFolder}/src/GrainWallet.Dashboard/GrainWallet.Dashboard.csproj",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -98,7 +98,7 @@
       "args": [
         "-NoProfile",
         "-Command",
-        "Get-Process -Name PlayerWallet.Dashboard -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 300; exit 0"
+        "Get-Process -Name GrainWallet.Dashboard -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 300; exit 0"
       ],
       "presentation": { "reveal": "silent", "panel": "shared", "close": true },
       "problemMatcher": []

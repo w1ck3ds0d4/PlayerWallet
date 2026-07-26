@@ -1,6 +1,33 @@
-# PlayerWallet v2 Changelog
+# GrainWallet v2 Changelog
 
-PlayerWallet v2 is a fork of [PlayerWallet v1](https://github.com/w1ck3ds0d4/PlayerWallet)
+## Correctness hotfix
+
+The v2.1/v2.2 performance notes below described unsafe behavior as an
+acceptable tradeoff. It was not acceptable for a real-money wallet:
+
+- `wallet_outbox` is logged again. A PostgreSQL crash must not retain a
+  balance while truncating its unpublished ledger event.
+- Every stateful operation now writes a compact `wallet_operations` receipt
+  in the same single CTE statement as versioned wallet state and the outbox
+  row. A retry after process death cannot apply the same operation twice, and
+  operation ids are bound to operation type, amount, and currency.
+- Grain state is staged and installed only after the database confirms the
+  commit. Failed saves no longer leak phantom balances or poison dedupe.
+- Wallet rows use optimistic versions and production instances use shared
+  ADO.NET Orleans clustering. A stale activation reloads instead of blindly
+  overwriting a newer committed balance.
+- The two-worker drainer retains cross-player parallelism but takes a
+  transaction-scoped advisory lock per player and publishes each player's
+  rows sequentially. A failure stops that player's chain.
+- Kafka producer idempotence and all-ISR acknowledgements are enabled. With
+  PostgreSQL but no Kafka, the drainer does not run, so rows remain pending
+  rather than being marked published by the no-op publisher.
+
+The HTTP routes and event JSON contract are unchanged. The mutation path
+remains one prepared SQL round trip and one commit; the hot path does not
+restore the growing JSONB cache rewrite.
+
+GrainWallet v2 is a fork of [GrainWallet v1](https://github.com/w1ck3ds0d4/GrainWallet)
 that applies the improvements identified in the v1 post-mortem study guide.
 Same surface, same Aspire + Orleans + Kafka + Postgres stack, same wire
 contract for the three endpoints. The wallet event schema is **breaking**
@@ -16,7 +43,7 @@ After running the v1-vs-v2 bench across multiple durations and persisting
 the results, two systematic problems emerged. This pass investigates each
 and fixes them.
 
-### Problems observed (from `src/PlayerWallet.Dashboard/.../reports/`)
+### Problems observed (from `src/GrainWallet.Dashboard/.../reports/`)
 
 | Symptom | Root cause | Fix |
 |---|---|---|
@@ -29,13 +56,13 @@ and fixes them.
 
 | File | Change |
 |---|---|
-| [`BenchOptions.cs`](src/PlayerWallet.Dashboard/Bench/BenchOptions.cs) | New `HttpTimeoutSeconds` (default 60), new `ScenarioRpsOverrides` dict, new `ResolvedRpsFor(scenario)` helper. |
-| [`appsettings.json`](src/PlayerWallet.Dashboard/appsettings.json) | `HttpTimeoutSeconds: 60`, `ScenarioRpsOverrides: { "hot-wallet": 50 }`. |
-| [`BenchScenarios.cs`](src/PlayerWallet.Dashboard/Bench/BenchScenarios.cs) | `WarmupCyclesPerWallet` 3 -> 5. Scenario builder uses `opts.ResolvedRpsFor(scenario)` instead of the global rps. |
-| [`BenchRunner.cs`](src/PlayerWallet.Dashboard/Bench/BenchRunner.cs) | HttpClient.Timeout from `bench.HttpTimeoutSeconds`. `BenchRun.RequestsPerSecond` records the resolved per-scenario rate so persisted summaries are accurate. Status text shows the resolved rate + http timeout. |
-| [`WalletOutboxDrainer.cs`](src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs) | Two parallel worker tasks (worker 0 owns the gate refresh + outbox depth meter to avoid double work). Adaptive poll (5/25/100ms). Batch size 200 -> 500. |
-| [`DashboardEndpoints.cs`](src/PlayerWallet.Dashboard/Endpoints/DashboardEndpoints.cs) | `/api/config` now exposes `httpTimeoutSeconds` and `scenarioRpsOverrides`. |
-| [`dashboard.js`](src/PlayerWallet.Dashboard/wwwroot/dashboard.js) | Config summary line shows per-scenario overrides and the timeout. |
+| [`BenchOptions.cs`](src/GrainWallet.Dashboard/Bench/BenchOptions.cs) | New `HttpTimeoutSeconds` (default 60), new `ScenarioRpsOverrides` dict, new `ResolvedRpsFor(scenario)` helper. |
+| [`appsettings.json`](src/GrainWallet.Dashboard/appsettings.json) | `HttpTimeoutSeconds: 60`, `ScenarioRpsOverrides: { "hot-wallet": 50 }`. |
+| [`BenchScenarios.cs`](src/GrainWallet.Dashboard/Bench/BenchScenarios.cs) | `WarmupCyclesPerWallet` 3 -> 5. Scenario builder uses `opts.ResolvedRpsFor(scenario)` instead of the global rps. |
+| [`BenchRunner.cs`](src/GrainWallet.Dashboard/Bench/BenchRunner.cs) | HttpClient.Timeout from `bench.HttpTimeoutSeconds`. `BenchRun.RequestsPerSecond` records the resolved per-scenario rate so persisted summaries are accurate. Status text shows the resolved rate + http timeout. |
+| [`WalletOutboxDrainer.cs`](src/GrainWallet.Api/Db/WalletOutboxDrainer.cs) | Two parallel worker tasks (worker 0 owns the gate refresh + outbox depth meter to avoid double work). Adaptive poll (5/25/100ms). Batch size 200 -> 500. |
+| [`DashboardEndpoints.cs`](src/GrainWallet.Dashboard/Endpoints/DashboardEndpoints.cs) | `/api/config` now exposes `httpTimeoutSeconds` and `scenarioRpsOverrides`. |
+| [`dashboard.js`](src/GrainWallet.Dashboard/wwwroot/dashboard.js) | Config summary line shows per-scenario overrides and the timeout. |
 
 ### What v2.2 does NOT fix
 
@@ -55,10 +82,10 @@ SKIP LOCKED, back-pressure gate, validation pre-grain,
 
 | # | Change | File(s) | Expected impact |
 |---|---|---|---|
-| 14 | `PostgresWalletStateStore.SaveAsync` collapsed to a single CTE round-trip. v1 sent `BEGIN; UPSERT; INSERT outbox; COMMIT` (four round-trips, one fsync). v2.1 sends one statement: `WITH state_upsert AS (UPSERT) INSERT INTO wallet_outbox SELECT FROM state_upsert`. Implicit single transaction, one round-trip, one fsync. | [`PostgresWalletStateStore.cs`](src/PlayerWallet.Api/Db/PostgresWalletStateStore.cs) | Removes ~3 network round-trips per mutation. Typically 2-4 ms saved at sustained load. |
-| 15 | `Max Auto Prepare=10` + `Auto Prepare Min Usages=5` on the Npgsql connection string. After the 5th call Npgsql server-side prepares the statement, skipping parse/plan cost. | [`Program.cs`](src/PlayerWallet.Api/Program.cs) | ~0.5-1 ms saved per mutation once steady-state. |
-| 16 | `wallet_outbox` table is `UNLOGGED`. Postgres skips WAL writes for unlogged tables. Trade: outbox rows lost on Postgres crash before the drainer publishes them (wallet_state remains WAL-protected). Consumer dedupe is at-least-once anyway. Flip back to LOGGED in production where compliance requires per-event durability. | [`WalletStateAndOutbox.sql`](src/PlayerWallet.Api/Db/Schema/WalletStateAndOutbox.sql) | Removes the second fsync per mutation. Big win on hot-wallet. |
-| 17 | Idempotency cache is no longer persisted on every mutation. `SaveAsync` only writes balance + outbox; `recent_operations` / `operation_order` JSONB columns are flushed via `PersistCacheAsync` from `WalletGrain.OnDeactivateAsync`. As the cache filled toward 256 entries v2 was rewriting ~10 KB of JSON per mutation; v2.1 hot path writes are now bounded to two NUMERIC + one TEXT + one JSONB payload (the event itself). | [`WalletGrain.cs`](src/PlayerWallet.Grains/WalletGrain.cs), [`PostgresWalletStateStore.cs`](src/PlayerWallet.Api/Db/PostgresWalletStateStore.cs), [`IWalletStateStore.cs`](src/PlayerWallet.Grains/IWalletStateStore.cs), [`InMemoryWalletStateStore.cs`](src/PlayerWallet.Grains/InMemoryWalletStateStore.cs) | Biggest single win at high mutation counts. Trade: process crash before deactivation loses the un-flushed cache; retries within seconds normally hit the same activation and dedupe before any persistence is involved (Orleans default activation idle = 5 min). |
+| 14 | `PostgresWalletStateStore.SaveAsync` collapsed to a single CTE round-trip. v1 sent `BEGIN; UPSERT; INSERT outbox; COMMIT` (four round-trips, one fsync). v2.1 sends one statement: `WITH state_upsert AS (UPSERT) INSERT INTO wallet_outbox SELECT FROM state_upsert`. Implicit single transaction, one round-trip, one fsync. | [`PostgresWalletStateStore.cs`](src/GrainWallet.Api/Db/PostgresWalletStateStore.cs) | Removes ~3 network round-trips per mutation. Typically 2-4 ms saved at sustained load. |
+| 15 | `Max Auto Prepare=10` + `Auto Prepare Min Usages=5` on the Npgsql connection string. After the 5th call Npgsql server-side prepares the statement, skipping parse/plan cost. | [`Program.cs`](src/GrainWallet.Api/Program.cs) | ~0.5-1 ms saved per mutation once steady-state. |
+| 16 | `wallet_outbox` table is `UNLOGGED`. Postgres skips WAL writes for unlogged tables. Trade: outbox rows lost on Postgres crash before the drainer publishes them (wallet_state remains WAL-protected). Consumer dedupe is at-least-once anyway. Flip back to LOGGED in production where compliance requires per-event durability. | [`WalletStateAndOutbox.sql`](src/GrainWallet.Api/Db/Schema/WalletStateAndOutbox.sql) | Removes the second fsync per mutation. Big win on hot-wallet. |
+| 17 | Idempotency cache is no longer persisted on every mutation. `SaveAsync` only writes balance + outbox; `recent_operations` / `operation_order` JSONB columns are flushed via `PersistCacheAsync` from `WalletGrain.OnDeactivateAsync`. As the cache filled toward 256 entries v2 was rewriting ~10 KB of JSON per mutation; v2.1 hot path writes are now bounded to two NUMERIC + one TEXT + one JSONB payload (the event itself). | [`WalletGrain.cs`](src/GrainWallet.Grains/WalletGrain.cs), [`PostgresWalletStateStore.cs`](src/GrainWallet.Api/Db/PostgresWalletStateStore.cs), [`IWalletStateStore.cs`](src/GrainWallet.Grains/IWalletStateStore.cs), [`InMemoryWalletStateStore.cs`](src/GrainWallet.Grains/InMemoryWalletStateStore.cs) | Biggest single win at high mutation counts. Trade: process crash before deactivation loses the un-flushed cache; retries within seconds normally hit the same activation and dedupe before any persistence is involved (Orleans default activation idle = 5 min). |
 
 ### v2.1 honest caveats
 
@@ -86,19 +113,19 @@ the original semantic across a clean restart.
 
 | # | Change | File(s) | Risk if shipped without it |
 |---|---|---|---|
-| 1 | Outbox drainer now claims rows with `FOR UPDATE SKIP LOCKED` inside a transaction. | [`src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs`](src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs) | A second API instance would have double-published every event. |
-| 2 | Idempotency cache is a real LRU. Touched entries move to the tail; cache hits no longer get evicted by an unrelated 256-op burst. | [`src/PlayerWallet.Grains/WalletState.cs`](src/PlayerWallet.Grains/WalletState.cs), [`WalletGrain.cs`](src/PlayerWallet.Grains/WalletGrain.cs) | Long-tailed retry storms could miss the cache and re-mutate. |
-| 3 | Outbox back-pressure gate. Drainer publishes pending-row counts to a shared `OutboxBackpressureGate`; the wallet grain rejects mutations with `OutboxFull` (HTTP 503) when the cap (default 100k) is breached. | [`src/PlayerWallet.Grains/OutboxBackpressureGate.cs`](src/PlayerWallet.Grains/OutboxBackpressureGate.cs), [`WalletGrain.cs`](src/PlayerWallet.Grains/WalletGrain.cs), [`WalletOutboxDrainer.cs`](src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs), [`Program.cs`](src/PlayerWallet.Api/Program.cs) | Kafka outage of any length would grow `wallet_outbox` without bound. |
-| 4 | Endpoint pre-grain validation: invalid amount (`<= 0`) is rejected with `400` at the endpoint, never reaches the grain. | [`src/PlayerWallet.Api/Endpoints/WalletEndpoints.cs`](src/PlayerWallet.Api/Endpoints/WalletEndpoints.cs) | Garbage requests amplified one Postgres tx + one outbox row per bad request. |
-| 5 | State-dependent rejections only persist. Grain stops writing `OperationRejected` rows for input rejections (`InvalidAmount`, `CurrencyMismatch`). | [`src/PlayerWallet.Grains/WalletGrain.cs`](src/PlayerWallet.Grains/WalletGrain.cs) | Same amplification path as #4 from a different angle. |
-| 6 | Event schema rename: `DeductionRejected` → `OperationRejected`. | [`src/PlayerWallet.Contracts/WalletEvents.cs`](src/PlayerWallet.Contracts/WalletEvents.cs), JSON contexts, drainer dispatch | v1 type name misrepresented add-funds rejections. Breaking change for consumers. |
-| 7 | Currency column tightened: `CHAR(3)` → `VARCHAR(3)` + `CHECK (^[A-Z]{3}$)`. Loader no longer needs `TrimEnd`. | [`src/PlayerWallet.Api/Db/Schema/WalletStateAndOutbox.sql`](src/PlayerWallet.Api/Db/Schema/WalletStateAndOutbox.sql), [`PostgresWalletStateStore.cs`](src/PlayerWallet.Api/Db/PostgresWalletStateStore.cs) | Direct SQL consumers saw `'EUR '` with trailing space. |
-| 8 | `wallet.outbox_pending` OTel meter is now actually fed. Drainer publishes pending count every 2 s; gauge surfaces it to the Aspire dashboard. | [`src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs`](src/PlayerWallet.Api/Db/WalletOutboxDrainer.cs), [`src/PlayerWallet.Grains/Telemetry/WalletMeters.cs`](src/PlayerWallet.Grains/Telemetry/WalletMeters.cs) | v1 gauge had no call sites; always read zero. |
-| 9 | `Money.Add` and `Money.Subtract` use `checked()`. Overflow throws instead of wrapping. | [`src/PlayerWallet.Contracts/Money.cs`](src/PlayerWallet.Contracts/Money.cs) | Theoretical only, but a financial service should be paranoid. |
-| 10 | Route constraint on `playerId` (`minlength(1):maxlength(64)`). | [`src/PlayerWallet.Api/Endpoints/WalletEndpoints.cs`](src/PlayerWallet.Api/Endpoints/WalletEndpoints.cs) | A 100 KB `playerId` could inflate Postgres rows and OTel span tags. |
-| 11 | `synchronous_commit` defaults to `on` in the AppHost Postgres config. v1 dev-bench setting (`off`) is opt-in via `PLAYERWALLET_PG_SYNC=off`. | [`src/PlayerWallet.AppHost/AppHost.cs`](src/PlayerWallet.AppHost/AppHost.cs) | v1 headline numbers were measured without durable commits. |
-| 12 | Dead `MemoryGrainStorage("WalletStorage")` registration removed. Wallet grain now goes through `IWalletStateStore` exclusively. | [`src/PlayerWallet.Api/Program.cs`](src/PlayerWallet.Api/Program.cs), [`tests/.../WalletGrainTestCluster.cs`](tests/PlayerWallet.Tests.Component/Grain/WalletGrainTestCluster.cs) | Cosmetic but misleading on a code walk-through. |
-| 13 | Pre-warm in the load harness switched to no-op mutations (add 0.01 + deduct 0.01) instead of GET /balance. | [`tests/PlayerWallet.Tests.Load/WalletPool.cs`](tests/PlayerWallet.Tests.Load/WalletPool.cs) | v1 add-funds p95 ran ~5 ms over the 100 ms target due to first-mutation cost in the bench window. |
+| 1 | Outbox drainer now claims rows with `FOR UPDATE SKIP LOCKED` inside a transaction. | [`src/GrainWallet.Api/Db/WalletOutboxDrainer.cs`](src/GrainWallet.Api/Db/WalletOutboxDrainer.cs) | A second API instance would have double-published every event. |
+| 2 | Idempotency cache is a real LRU. Touched entries move to the tail; cache hits no longer get evicted by an unrelated 256-op burst. | [`src/GrainWallet.Grains/WalletState.cs`](src/GrainWallet.Grains/WalletState.cs), [`WalletGrain.cs`](src/GrainWallet.Grains/WalletGrain.cs) | Long-tailed retry storms could miss the cache and re-mutate. |
+| 3 | Outbox back-pressure gate. Drainer publishes pending-row counts to a shared `OutboxBackpressureGate`; the wallet grain rejects mutations with `OutboxFull` (HTTP 503) when the cap (default 100k) is breached. | [`src/GrainWallet.Grains/OutboxBackpressureGate.cs`](src/GrainWallet.Grains/OutboxBackpressureGate.cs), [`WalletGrain.cs`](src/GrainWallet.Grains/WalletGrain.cs), [`WalletOutboxDrainer.cs`](src/GrainWallet.Api/Db/WalletOutboxDrainer.cs), [`Program.cs`](src/GrainWallet.Api/Program.cs) | Kafka outage of any length would grow `wallet_outbox` without bound. |
+| 4 | Endpoint pre-grain validation: invalid amount (`<= 0`) is rejected with `400` at the endpoint, never reaches the grain. | [`src/GrainWallet.Api/Endpoints/WalletEndpoints.cs`](src/GrainWallet.Api/Endpoints/WalletEndpoints.cs) | Garbage requests amplified one Postgres tx + one outbox row per bad request. |
+| 5 | State-dependent rejections only persist. Grain stops writing `OperationRejected` rows for input rejections (`InvalidAmount`, `CurrencyMismatch`). | [`src/GrainWallet.Grains/WalletGrain.cs`](src/GrainWallet.Grains/WalletGrain.cs) | Same amplification path as #4 from a different angle. |
+| 6 | Event schema rename: `DeductionRejected` → `OperationRejected`. | [`src/GrainWallet.Contracts/WalletEvents.cs`](src/GrainWallet.Contracts/WalletEvents.cs), JSON contexts, drainer dispatch | v1 type name misrepresented add-funds rejections. Breaking change for consumers. |
+| 7 | Currency column tightened: `CHAR(3)` → `VARCHAR(3)` + `CHECK (^[A-Z]{3}$)`. Loader no longer needs `TrimEnd`. | [`src/GrainWallet.Api/Db/Schema/WalletStateAndOutbox.sql`](src/GrainWallet.Api/Db/Schema/WalletStateAndOutbox.sql), [`PostgresWalletStateStore.cs`](src/GrainWallet.Api/Db/PostgresWalletStateStore.cs) | Direct SQL consumers saw `'EUR '` with trailing space. |
+| 8 | `wallet.outbox_pending` OTel meter is now actually fed. Drainer publishes pending count every 2 s; gauge surfaces it to the Aspire dashboard. | [`src/GrainWallet.Api/Db/WalletOutboxDrainer.cs`](src/GrainWallet.Api/Db/WalletOutboxDrainer.cs), [`src/GrainWallet.Grains/Telemetry/WalletMeters.cs`](src/GrainWallet.Grains/Telemetry/WalletMeters.cs) | v1 gauge had no call sites; always read zero. |
+| 9 | `Money.Add` and `Money.Subtract` use `checked()`. Overflow throws instead of wrapping. | [`src/GrainWallet.Contracts/Money.cs`](src/GrainWallet.Contracts/Money.cs) | Theoretical only, but a financial service should be paranoid. |
+| 10 | Route constraint on `playerId` (`minlength(1):maxlength(64)`). | [`src/GrainWallet.Api/Endpoints/WalletEndpoints.cs`](src/GrainWallet.Api/Endpoints/WalletEndpoints.cs) | A 100 KB `playerId` could inflate Postgres rows and OTel span tags. |
+| 11 | `synchronous_commit` defaults to `on` in the AppHost Postgres config. v1 dev-bench setting (`off`) is opt-in via `GRAINWALLET_PG_SYNC=off`. | [`src/GrainWallet.AppHost/AppHost.cs`](src/GrainWallet.AppHost/AppHost.cs) | v1 headline numbers were measured without durable commits. |
+| 12 | Dead `MemoryGrainStorage("WalletStorage")` registration removed. Wallet grain now goes through `IWalletStateStore` exclusively. | [`src/GrainWallet.Api/Program.cs`](src/GrainWallet.Api/Program.cs), [`tests/.../WalletGrainTestCluster.cs`](tests/GrainWallet.Tests.Component/Grain/WalletGrainTestCluster.cs) | Cosmetic but misleading on a code walk-through. |
+| 13 | Pre-warm in the load harness switched to no-op mutations (add 0.01 + deduct 0.01) instead of GET /balance. | [`tests/GrainWallet.Tests.Load/WalletPool.cs`](tests/GrainWallet.Tests.Load/WalletPool.cs) | v1 add-funds p95 ran ~5 ms over the 100 ms target due to first-mutation cost in the bench window. |
 
 ## Test additions
 
@@ -132,7 +159,7 @@ infra-dependent) and intentionally left out of this release.
 ## Benchmark numbers
 
 This release ships **without** new benchmark numbers in the repo. The v1
-numbers in `tests/PlayerWallet.Tests.Load/reports/` were measured with
+numbers in `tests/GrainWallet.Tests.Load/reports/` were measured with
 `synchronous_commit=off` and the GET-based pre-warm and are not directly
 comparable to v2's behaviour.
 
@@ -140,9 +167,9 @@ To re-bench against v2:
 
 ```powershell
 $env:WALLET_API_URL = "http://localhost:5000"
-dotnet run --project src/PlayerWallet.AppHost
+dotnet run --project src/GrainWallet.AppHost
 # in a second shell, once the dashboard shows the API as ready:
-dotnet run --project tests/PlayerWallet.Tests.Load --configuration Release
+dotnet run --project tests/GrainWallet.Tests.Load --configuration Release
 ```
 
 Expected directional changes vs v1:
@@ -154,7 +181,7 @@ Expected directional changes vs v1:
 To reproduce the v1 trade-off (durability off, for dev throughput):
 
 ```powershell
-$env:PLAYERWALLET_PG_SYNC = "off"
+$env:GRAINWALLET_PG_SYNC = "off"
 ```
 
 ## Known weaknesses still in v2

@@ -7,7 +7,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary;ForceNoAlign"
       ],
@@ -23,7 +23,7 @@
       "command": "dotnet",
       "args": [
         "build",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "-c",
         "Release",
         "/property:GenerateFullPaths=true",
@@ -37,7 +37,7 @@
       "command": "dotnet",
       "args": [
         "format",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "--verify-no-changes"
       ],
       "problemMatcher": []
@@ -48,7 +48,7 @@
       "command": "dotnet",
       "args": [
         "format",
-        "${workspaceFolder}/PlayerWallet.slnx"
+        "${workspaceFolder}/GrainWallet.slnx"
       ],
       "problemMatcher": []
     },
@@ -58,7 +58,7 @@
       "command": "dotnet",
       "args": [
         "test",
-        "${workspaceFolder}/PlayerWallet.slnx",
+        "${workspaceFolder}/GrainWallet.slnx",
         "-c",
         "Release",
         "--no-build",
@@ -88,7 +88,7 @@
         "-c",
         "Release",
         "--project",
-        "${workspaceFolder}/tests/PlayerWallet.Tests.Load"
+        "${workspaceFolder}/tests/GrainWallet.Tests.Load"
       ],
       "problemMatcher": []
     }

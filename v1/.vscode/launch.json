@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "program": "${workspaceFolder}/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWallet.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/src/GrainWallet.AppHost",
       "stopAtEntry": false,
       "console": "internalConsole",
       "env": {
@@ -21,16 +21,16 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWallet", "order": 1 }
+      "presentation": { "group": "GrainWallet", "order": 1 }
     },
     {
       "name": "Run AppHost (no debug)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "program": "${workspaceFolder}/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWallet.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/src/GrainWallet.AppHost",
       "console": "internalConsole",
       "noDebug": true,
       "env": {
@@ -43,31 +43,31 @@
         "pattern": "Login to the dashboard at (https?://\\S+)",
         "uriFormat": "%s"
       },
-      "presentation": { "group": "PlayerWallet", "order": 2 }
+      "presentation": { "group": "GrainWallet", "order": 2 }
     },
     {
       "name": "Run Load Benchmarks (NBomber)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-release",
-      "program": "${workspaceFolder}/tests/PlayerWallet.Tests.Load/bin/Release/net10.0/PlayerWallet.Tests.Load.dll",
+      "program": "${workspaceFolder}/tests/GrainWallet.Tests.Load/bin/Release/net10.0/GrainWallet.Tests.Load.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/tests/PlayerWallet.Tests.Load",
+      "cwd": "${workspaceFolder}/tests/GrainWallet.Tests.Load",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
         "DOTNET_ENVIRONMENT": "Production"
       },
-      "presentation": { "group": "PlayerWallet", "order": 3 }
+      "presentation": { "group": "GrainWallet", "order": 3 }
     },
     {
       "name": "Open Scalar API UI",
       "type": "chrome",
       "request": "launch",
       "url": "https://localhost:7223/scalar/v1",
-      "webRoot": "${workspaceFolder}/src/PlayerWallet.Api",
-      "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/playerwallet-scalar",
-      "presentation": { "group": "PlayerWallet", "order": 4 }
+      "webRoot": "${workspaceFolder}/src/GrainWallet.Api",
+      "userDataDir": "${env:USERPROFILE}/.vscode-debug-profiles/grainwallet-scalar",
+      "presentation": { "group": "GrainWallet", "order": 4 }
     }
   ],
   "compounds": [
@@ -75,7 +75,7 @@
       "name": "AppHost + Scalar UI",
       "configurations": ["Run AppHost (Aspire)", "Open Scalar API UI"],
       "stopAll": true,
-      "presentation": { "group": "PlayerWallet", "order": 0 }
+      "presentation": { "group": "GrainWallet", "order": 0 }
     }
   ]
 }

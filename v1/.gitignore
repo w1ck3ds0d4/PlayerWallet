@@ -34,7 +34,7 @@ coverage/
 .cover/
 
 # Load test reports: bench artifacts (HTML / TXT / CSV / MD) are tracked as the submission deliverable. NBomber's per-run debug log can be tens of megabytes when there are failures, so it stays ignored.
-tests/PlayerWallet.Tests.Load/reports/**/nbomber-log-*.txt
+tests/GrainWallet.Tests.Load/reports/**/nbomber-log-*.txt
 
 # Logs
 *.log

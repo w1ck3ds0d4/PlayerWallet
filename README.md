@@ -9,12 +9,12 @@ the service lives in its own committed subfolder (`v1/`, `v2/`, ...).
 
 ```
 GrainWallet/
-  src/PlayerWallet.Dashboard/                 NBomber-driven side-by-side comparison UI
+  src/GrainWallet.Dashboard/                 NBomber-driven side-by-side comparison UI
   v1/                                         full v1 source (committed)
   v2/                                         full v2 source (committed)
   vN/                                         add more versions the same way
   .vscode/                                    Compare compound + per-version build tasks
-  PlayerWallet.slnx                           Hub solution (Dashboard only)
+  GrainWallet.slnx                           Hub solution (Dashboard only)
 ```
 
 Clone-and-run: `git clone` is enough. No worktree or submodule setup.
@@ -23,7 +23,7 @@ Clone-and-run: `git clone` is enough. No worktree or submodule setup.
 
 | Folder | What lives there |
 |---|---|
-| `v1/` | Original PlayerWallet submission: in-memory LRU, basic outbox drainer, original event names. |
+| `v1/` | Original GrainWallet submission: in-memory LRU, basic outbox drainer, original event names. |
 | `v2/` | Hardened revision: `FOR UPDATE SKIP LOCKED` outbox, real LRU idempotency, back-pressure gate (HTTP 503), endpoint pre-grain validation, `synchronous_commit=on`, currency `VARCHAR(3)` + CHECK, event rename (`DeductionRejected` -> `OperationRejected`). |
 
 Each version folder carries its own `README.md`, `ENGINEERING_JOURNAL.md`,
@@ -40,20 +40,20 @@ From the command line:
 ```powershell
 # Terminal A: v1 on default ports (API 5000, Kafka 19092)
 cd v1
-dotnet run --project src/PlayerWallet.AppHost
+dotnet run --project src/GrainWallet.AppHost
 
 # Terminal B: v2 on overridden ports (API 5001, Kafka 19093)
 cd ..\v2
 $env:WALLET_API_HOST_PORT = "5001"
 $env:WALLET_KAFKA_HOST_PORT = "19093"
-dotnet run --project src/PlayerWallet.AppHost
+dotnet run --project src/GrainWallet.AppHost
 
 # Terminal C: dashboard at http://localhost:5100
 cd ..
-dotnet run --project src/PlayerWallet.Dashboard
+dotnet run --project src/GrainWallet.Dashboard
 ```
 
-Dashboard config (`src/PlayerWallet.Dashboard/appsettings.json`) maps each
+Dashboard config (`src/GrainWallet.Dashboard/appsettings.json`) maps each
 project name to a base URL:
 
 ```json
@@ -71,12 +71,12 @@ variant.
 ## Local CI gates
 
 ```powershell
-dotnet format PlayerWallet.slnx --verify-no-changes --severity error
-dotnet build  PlayerWallet.slnx -c Release -warnaserror
+dotnet format GrainWallet.slnx --verify-no-changes --severity error
+dotnet build  GrainWallet.slnx -c Release -warnaserror
 ```
 
 These also run on every push and PR to `main` via `.github/workflows/ci.yml`.
-The hub's `PlayerWallet.slnx` only references the Dashboard project; each
+The hub's `GrainWallet.slnx` only references the Dashboard project; each
 `vN/` folder ships its own solution if you want to build that version
 in isolation.
 

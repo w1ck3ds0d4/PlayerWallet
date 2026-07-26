@@ -1,4 +1,4 @@
-# PlayerWallet
+# GrainWallet
 
 Per-player wallet microservice built on .NET Aspire, Microsoft Orleans, and Kafka.
 Three HTTP operations: credit funds, debit funds, read balance. Per-grain
@@ -14,7 +14,7 @@ flowchart LR
     Client["HTTP Client<br/>(curl, NBomber, ...)"]
 
     subgraph AppHost["Aspire AppHost"]
-        Api["PlayerWallet.Api<br/>Minimal API + co-hosted Orleans silo"]
+        Api["GrainWallet.Api<br/>Minimal API + co-hosted Orleans silo"]
         Postgres[("PostgreSQL<br/>wallet_state + wallet_outbox<br/>OrleansStorage (cluster only)")]
         Kafka[("Apache Kafka<br/>wallet.events (6 partitions)")]
         KafkaUi["Kafka UI"]
@@ -58,7 +58,7 @@ single-transaction custom store.
 ## Run the whole stack
 
 ```bash
-dotnet run --project src/PlayerWallet.AppHost
+dotnet run --project src/GrainWallet.AppHost
 ```
 
 The Aspire dashboard auto-opens. It surfaces:
@@ -98,11 +98,11 @@ The API also runs standalone with memory grain storage,
 or Kafka required). This is the path the component tests exercise:
 
 ```bash
-dotnet run --project src/PlayerWallet.Api
+dotnet run --project src/GrainWallet.Api
 ```
 
 Default URL is `http://localhost:5036` (from
-`src/PlayerWallet.Api/Properties/launchSettings.json`).
+`src/GrainWallet.Api/Properties/launchSettings.json`).
 
 ## Try the endpoints
 
@@ -130,17 +130,17 @@ the Aspire dashboard. Liveness at `/health/live`, readiness at `/health/ready`.
 
 | Project                              | Scope                                                                                |
 |--------------------------------------|--------------------------------------------------------------------------------------|
-| `tests/PlayerWallet.Tests.Component` | xUnit. Money value object, WalletGrain unit tests, concurrent race tests, HTTP component tests via `WebApplicationFactory`, Kafka trace-context propagation tests, end-to-end outbox pipeline integration test (Testcontainers Postgres + Kafka). 63 unit/component tests pass locally; the outbox pipeline test is `Trait("Category", "Integration")` so it can be filtered out when Docker is not running and runs on CI. |
-| `tests/PlayerWallet.Tests.Load`      | NBomber console. 1000 rps x 5 min per endpoint. Pre-warms every grain via GET /balance before measurement so the first window does not show grain-activation tail. The hot-wallet appendix is wired up but skipped on the Windows submission run as a TCP ephemeral-port artifact (see `ENGINEERING_JOURNAL.md`, hot-wallet appendix). |
+| `tests/GrainWallet.Tests.Component` | xUnit. Money value object, WalletGrain unit tests, concurrent race tests, HTTP component tests via `WebApplicationFactory`, Kafka trace-context propagation tests, end-to-end outbox pipeline integration test (Testcontainers Postgres + Kafka). 63 unit/component tests pass locally; the outbox pipeline test is `Trait("Category", "Integration")` so it can be filtered out when Docker is not running and runs on CI. |
+| `tests/GrainWallet.Tests.Load`      | NBomber console. 1000 rps x 5 min per endpoint. Pre-warms every grain via GET /balance before measurement so the first window does not show grain-activation tail. The hot-wallet appendix is wired up but skipped on the Windows submission run as a TCP ephemeral-port artifact (see `ENGINEERING_JOURNAL.md`, hot-wallet appendix). |
 
 ### Run the unit + component test suite
 
 ```bash
-dotnet test PlayerWallet.slnx -c Release
+dotnet test GrainWallet.slnx -c Release
 ```
 
 The headline correctness proofs live in
-`tests/PlayerWallet.Tests.Component/Grain/WalletGrainConcurrencyTests.cs`:
+`tests/GrainWallet.Tests.Component/Grain/WalletGrainConcurrencyTests.cs`:
 
 - 100 parallel deductions settle to an exact final balance with monotonically
   decreasing `BalanceAfter` across the 100 published events
@@ -153,21 +153,21 @@ The headline correctness proofs live in
 
 ```bash
 # AppHost must already be running in another terminal
-dotnet run -c Release --project tests/PlayerWallet.Tests.Load
+dotnet run -c Release --project tests/GrainWallet.Tests.Load
 ```
 
 Each scenario writes an HTML + CSV + Markdown + .txt report to
-`tests/PlayerWallet.Tests.Load/reports/<scenario>/`. The submission
+`tests/GrainWallet.Tests.Load/reports/<scenario>/`. The submission
 reports from the spec-compliant 5-minute run are committed so a
 reviewer can open the HTMLs directly without re-running the bench.
 Run a single scenario by passing its name as the first positional
 arg:
 
 ```bash
-dotnet run -c Release --project tests/PlayerWallet.Tests.Load -- add-funds
-dotnet run -c Release --project tests/PlayerWallet.Tests.Load -- deduct-funds
-dotnet run -c Release --project tests/PlayerWallet.Tests.Load -- get-balance
-dotnet run -c Release --project tests/PlayerWallet.Tests.Load -- hot-wallet
+dotnet run -c Release --project tests/GrainWallet.Tests.Load -- add-funds
+dotnet run -c Release --project tests/GrainWallet.Tests.Load -- deduct-funds
+dotnet run -c Release --project tests/GrainWallet.Tests.Load -- get-balance
+dotnet run -c Release --project tests/GrainWallet.Tests.Load -- hot-wallet
 ```
 
 Override the target URL via `WALLET_API_URL` env var or pass it
@@ -179,17 +179,17 @@ and `WALLET_MEASURE_SECONDS` for perf-debugging sweeps.
 
 ```
 src/
-  PlayerWallet.AppHost/         Aspire orchestrator (Postgres + Kafka + Kafka UI + API)
-  PlayerWallet.ServiceDefaults/ OTel pipeline, health checks, service discovery
-  PlayerWallet.Contracts/       Money value object, IWalletGrain, request/response DTOs, event records
-  PlayerWallet.Grains/          WalletGrain, WalletState, IWalletEventPublisher, IWalletStateStore,
+  GrainWallet.AppHost/         Aspire orchestrator (Postgres + Kafka + Kafka UI + API)
+  GrainWallet.ServiceDefaults/ OTel pipeline, health checks, service discovery
+  GrainWallet.Contracts/       Money value object, IWalletGrain, request/response DTOs, event records
+  GrainWallet.Grains/          WalletGrain, WalletState, IWalletEventPublisher, IWalletStateStore,
                                 InMemoryWalletStateStore, WalletStateJsonContext, OTel meters
-  PlayerWallet.Api/             Minimal API + co-hosted silo, Kafka publisher (Kafka/),
+  GrainWallet.Api/             Minimal API + co-hosted silo, Kafka publisher (Kafka/),
                                 PostgresWalletStateStore + WalletOutboxDrainer + schema bootstrap (Db/)
 tests/
-  PlayerWallet.Tests.Component/ xUnit: Money, grain, HTTP, Kafka propagation, end-to-end outbox
+  GrainWallet.Tests.Component/ xUnit: Money, grain, HTTP, Kafka propagation, end-to-end outbox
                                 pipeline test (Outbox/ - uses Testcontainers Postgres + Kafka)
-  PlayerWallet.Tests.Load/      NBomber console
+  GrainWallet.Tests.Load/      NBomber console
 requests/                       VS Code REST client request files
 .vscode/                        launch.json (F5 to run AppHost) + tasks.json (Ctrl+Shift+B for CI gates)
 .github/workflows/ci.yml        format + build (-warnaserror) + test on push and PR
@@ -200,9 +200,9 @@ requests/                       VS Code REST client request files
 VS Code: `Ctrl+Shift+B` -> select `gates`. Or from the command line:
 
 ```bash
-dotnet format PlayerWallet.slnx --verify-no-changes --severity error
-dotnet build  PlayerWallet.slnx -c Release -warnaserror
-dotnet test   PlayerWallet.slnx -c Release --no-build
+dotnet format GrainWallet.slnx --verify-no-changes --severity error
+dotnet build  GrainWallet.slnx -c Release -warnaserror
+dotnet test   GrainWallet.slnx -c Release --no-build
 ```
 
 These three gates also run on every push and PR via `.github/workflows/ci.yml`.

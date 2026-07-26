@@ -6,9 +6,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-v1-apphost",
-      "program": "${workspaceFolder}/v1/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWallet.AppHost.dll",
+      "program": "${workspaceFolder}/v1/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWallet.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/v1/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/v1/src/GrainWallet.AppHost",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
@@ -35,9 +35,9 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build-v2-apphost",
-      "program": "${workspaceFolder}/v2/src/PlayerWallet.AppHost/bin/Debug/net10.0/PlayerWalletv2.AppHost.dll",
+      "program": "${workspaceFolder}/v2/src/GrainWallet.AppHost/bin/Debug/net10.0/GrainWalletv2.AppHost.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/v2/src/PlayerWallet.AppHost",
+      "cwd": "${workspaceFolder}/v2/src/GrainWallet.AppHost",
       "console": "integratedTerminal",
       "noDebug": true,
       "env": {
@@ -64,8 +64,8 @@
       "type": "node-terminal",
       "request": "launch",
       "preLaunchTask": "kill-dashboard",
-      "command": "dotnet run --project ${workspaceFolder}/src/PlayerWallet.Dashboard --no-launch-profile",
-      "cwd": "${workspaceFolder}/src/PlayerWallet.Dashboard",
+      "command": "dotnet run --project ${workspaceFolder}/src/GrainWallet.Dashboard --no-launch-profile",
+      "cwd": "${workspaceFolder}/src/GrainWallet.Dashboard",
       "env": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ASPNETCORE_URLS": "http://localhost:5100"

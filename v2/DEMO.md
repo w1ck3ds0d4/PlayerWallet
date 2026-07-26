@@ -8,7 +8,7 @@ so you can jump to the file references inline.
 
 1. Open the repo in VS Code. Make sure Docker Desktop is running (whale
    icon solid in the system tray).
-2. Run `dotnet run --project src/PlayerWallet.AppHost` once before the
+2. Run `dotnet run --project src/GrainWallet.AppHost` once before the
    call so the container images are already pulled. Stop the AppHost.
 3. Have these tabs open in the browser:
     - This repo on GitHub
@@ -66,7 +66,7 @@ Highlight:
 ## Section 3: start the AppHost and tour the dashboard (5 minutes)
 
 ```bash
-dotnet run --project src/PlayerWallet.AppHost
+dotnet run --project src/GrainWallet.AppHost
 ```
 
 Or hit `F5` in VS Code. The Aspire dashboard pops in the browser. Point at:
@@ -112,7 +112,7 @@ Switch to the Kafka UI tab and scroll through `wallet.events`. Point at:
 
 ## Section 5: race tests (2 minutes)
 
-Open `tests/PlayerWallet.Tests.Component/Grain/WalletGrainConcurrencyTests.cs`.
+Open `tests/GrainWallet.Tests.Component/Grain/WalletGrainConcurrencyTests.cs`.
 
 Walk through the three tests. Spend the time on
 `Parallel_Deductions_Beyond_Balance_Reject_Without_OverDraw`:
@@ -138,14 +138,14 @@ and exactly 50 `InsufficientFunds` rejections. No double-spend. Then
 run them:
 
 ```bash
-dotnet test tests/PlayerWallet.Tests.Component --filter "FullyQualifiedName~WalletGrainConcurrencyTests"
+dotnet test tests/GrainWallet.Tests.Component --filter "FullyQualifiedName~WalletGrainConcurrencyTests"
 ```
 
 3 tests, ~300 ms.
 
 ## Section 6: load benchmark (2 minutes if reports are pre-baked)
 
-The reports are pre-baked under `tests/PlayerWallet.Tests.Load/reports/`.
+The reports are pre-baked under `tests/GrainWallet.Tests.Load/reports/`.
 
 - Open `reports/add-funds/add-funds-<timestamp>.html`. Point at the
   latency distribution and the percentile timeline. Read mean / p95
@@ -193,6 +193,6 @@ Anchor points for likely questions:
   multi-broker Kafka with RF=3 re-enabling Acks=All + idempotent
   producer).
 - "Show me the trace context propagation." -> Open
-  `src/PlayerWallet.Api/Kafka/KafkaWalletEventPublisher.cs`, point at
+  `src/GrainWallet.Api/Kafka/KafkaWalletEventPublisher.cs`, point at
   `BuildHeaders`. Then open the propagation tests in
-  `tests/PlayerWallet.Tests.Component/Kafka/`.
+  `tests/GrainWallet.Tests.Component/Kafka/`.
